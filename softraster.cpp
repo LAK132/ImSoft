@@ -255,9 +255,6 @@ void Softraster::renderPixel(renderData_t* renderData, pixel_t* pixel)
 
 void Softraster::renderLine(renderData_t* renderData, line_t* line)
 {
-    //Round x vals
-    // line->x1 = roundf(line->x1);
-    // line->x2 = roundf(line->x2);
 
     //Discard line if it is outside the frame buffer    
     if ((line->x2 < 0) || 
@@ -344,15 +341,21 @@ void Softraster::renderTriangleFB(renderData_t* renderData, triangle_t* tri)
 
     float x1 = tri->x1;
     float x2 = tri->x1;
+
+    bool flatU = tri->u1 == tri->u2 && tri->u1 == tri->u3;
+    bool flatV = tri->v1 == tri->v2 && tri->v1 == tri->v3;
+    bool flatC = tri->c1 == tri->c2 && tri->c1 == tri->c3;
+    bool flatF = flatU && flatV && flatC;
     
     line_t l;
+    float f, t1, t2, t3, t4;
 
     float ystart = (tri->y1 > 0 ? tri->y1 : 0);
     float yend = (tri->y2 < renderData->screen->h ? tri->y2 : renderData->screen->h);
     
     for (float y = ystart; y < yend; y++)
     {
-        float f = y - tri->y1;
+        f = y - tri->y1;
         if(tri->y1 != tri->y2)
           f /= tri->y2 - tri->y1;   
 
@@ -360,43 +363,60 @@ void Softraster::renderTriangleFB(renderData_t* renderData, triangle_t* tri)
         l.x2 = lerp(tri->x1, tri->x3, f); //x2;
         l.y = y;
 
-        //top from current-start
-        float t1 = tri->x1 - x1;
-        float t2 = tri->y1 - y;
-        //left from top
-        float t3 = tri->x2 - tri->x1;
-        float t4 = tri->y2 - tri->y1;
-        //(dist top from cur-start)/(dist left from top)
-        f = sqrtf((t1 * t1) + (t2 * t2));
-        if ((t3 != 0.0f) || (t4 != 0.0f))
-            f /= sqrtf((t3 * t3) + (t4 * t4));
+        if (!flatF)
+        {
+            //top from current-start
+            t1 = tri->x1 - x1;
+            t2 = tri->y1 - y;
+            //left from top
+            t3 = tri->x2 - tri->x1;
+            t4 = tri->y2 - tri->y1;
+            //(dist top from cur-start)/(dist left from top)
+            f = sqrtf((t1 * t1) + (t2 * t2));
+            if ((t3 != 0.0f) || (t4 != 0.0f))
+                f /= sqrtf((t3 * t3) + (t4 * t4));
+        }
 
-        l.c1.r = lerp(tri->c1.r, tri->c2.r, f);
-        l.c1.g = lerp(tri->c1.g, tri->c2.g, f);
-        l.c1.b = lerp(tri->c1.b, tri->c2.b, f);
-        l.c1.a = lerp(tri->c1.a, tri->c2.a, f);
+        if (flatC)
+        {
+            l.c1 = tri->c1;
+            l.c2 = tri->c1;
+        }
+        else
+        {
+            l.c1.r = lerp(tri->c1.r, tri->c2.r, f);
+            l.c1.g = lerp(tri->c1.g, tri->c2.g, f);
+            l.c1.b = lerp(tri->c1.b, tri->c2.b, f);
+            l.c1.a = lerp(tri->c1.a, tri->c2.a, f);
+        }
 
-        l.u1 = lerp(tri->u1, tri->u2, f);
-        l.v1 = lerp(tri->v1, tri->v2, f);
+        l.u1 = flatU ? tri->u1 : lerp(tri->u1, tri->u2, f);
+        l.v1 = flatV ? tri->v1 : lerp(tri->v1, tri->v2, f);
 
-        //top from current-end
-        t1 = tri->x1 - (float)x2;
-        t2 = tri->y1 - y;
-        //right from top
-        t3 = tri->x3 - tri->x1;
-        t4 = tri->y3 - tri->y1;
-        //(dist top from cur-end)/(dist right from top)
-        f = sqrtf((t1 * t1) + (t2 * t2));
-        if ((t3 != 0.0f) || (t4 != 0.0f))
-            f /= sqrtf((t3 * t3) + (t4 * t4));
+        if (!flatF)
+        {
+            //top from current-end
+            t1 = tri->x1 - x2;
+            t2 = tri->y1 - y;
+            //right from top
+            t3 = tri->x3 - tri->x1;
+            t4 = tri->y3 - tri->y1;
+            //(dist top from cur-end)/(dist right from top)
+            f = sqrtf((t1 * t1) + (t2 * t2));
+            if ((t3 != 0.0f) || (t4 != 0.0f))
+                f /= sqrtf((t3 * t3) + (t4 * t4));
+        }
 
-        l.c2.r = lerp(tri->c1.r, tri->c3.r, f);
-        l.c2.g = lerp(tri->c1.g, tri->c3.g, f);
-        l.c2.b = lerp(tri->c1.b, tri->c3.b, f);
-        l.c2.a = lerp(tri->c1.a, tri->c3.a, f);
+        if (!flatC)
+        {
+            l.c2.r = lerp(tri->c1.r, tri->c3.r, f);
+            l.c2.g = lerp(tri->c1.g, tri->c3.g, f);
+            l.c2.b = lerp(tri->c1.b, tri->c3.b, f);
+            l.c2.a = lerp(tri->c1.a, tri->c3.a, f);
+        }
 
-        l.u2 = lerp(tri->u1, tri->u3, f);
-        l.v2 = lerp(tri->v1, tri->v3, f); 
+        l.u2 = flatU ? tri->u1 : lerp(tri->u1, tri->u3, f);
+        l.v2 = flatV ? tri->v1 : lerp(tri->v1, tri->v3, f); 
 
         x1 += x1Inc;
         x2 += x2Inc;
@@ -434,15 +454,24 @@ void Softraster::renderTriangleFT(renderData_t* renderData, triangle_t* tri)
 
     float x1 = tri->x3;
     float x2 = tri->x3;
+
+    bool flatU = tri->u1 == tri->u2 && tri->u1 == tri->u3;
+    bool flatV = tri->v1 == tri->v2 && tri->v1 == tri->v3;
+    bool flatC = tri->c1 == tri->c2 && tri->c1 == tri->c3;
+    bool flatF = flatU && flatV && flatC;
     
     line_t l;
+    float f, t1, t2, t3, t4;
 
     float ystart = (tri->y3 < renderData->screen->h ? tri->y3 : renderData->screen->h);
     float yend = (tri->y1 > 0 ? tri->y1 : 0);
     
+    bool optimX1 = tri->x1 == tri->x3;
+    bool optimX2 = tri->x2 == tri->x3;
+
     for (float y = ystart; y >= yend; y--)
     {
-        float f = y - tri->y1;
+        f = y - tri->y1;
         if(tri->y1 != tri->y3)
           f /= tri->y3 - tri->y1;   
 
@@ -450,37 +479,54 @@ void Softraster::renderTriangleFT(renderData_t* renderData, triangle_t* tri)
         l.x2 = lerp(tri->x2, tri->x3, f); //x2;
         l.y = y;
 
-        float t1 = tri->x3 - x1;
-        float t2 = tri->y3 - y;
-        float t3 = tri->x3 - tri->x1;
-        float t4 = tri->y3 - tri->y1;
-        f = sqrtf((t1 * t1) + (t2 * t2));
-        if ((t3 != 0.0f) || (t4 != 0.0f))
-            f /= sqrtf((t3 * t3) + (t4 * t4));
+        if (!flatF)
+        {
+            t1 = tri->x3 - x1;
+            t2 = tri->y3 - y;
+            t3 = tri->x3 - tri->x1;
+            t4 = tri->y3 - tri->y1;
+            f = sqrtf((t1 * t1) + (t2 * t2));
+            if ((t3 != 0.0f) || (t4 != 0.0f))
+                f /= sqrtf((t3 * t3) + (t4 * t4));
+        }
 
-        l.c1.r = lerp(tri->c3.r, tri->c1.r, f);
-        l.c1.g = lerp(tri->c3.g, tri->c1.g, f);
-        l.c1.b = lerp(tri->c3.b, tri->c1.b, f);
-        l.c1.a = lerp(tri->c3.a, tri->c1.a, f);
+        if (flatC)
+        {
+            l.c1 = tri->c1;
+            l.c2 = tri->c1;
+        }
+        else
+        {
+            l.c1.r = lerp(tri->c3.r, tri->c1.r, f);
+            l.c1.g = lerp(tri->c3.g, tri->c1.g, f);
+            l.c1.b = lerp(tri->c3.b, tri->c1.b, f);
+            l.c1.a = lerp(tri->c3.a, tri->c1.a, f);
+        }
 
-        l.u1 = lerp(tri->u3, tri->u1, f);
-        l.v1 = lerp(tri->v3, tri->v1, f);
+        l.u1 = flatU ? tri->u1 : lerp(tri->u3, tri->u1, f);
+        l.v1 = flatV ? tri->v1 : lerp(tri->v3, tri->v1, f);
 
-        t1 = tri->x3 - (float)x2;
-        t2 = tri->y3 - y;
-        t3 = tri->x3 - tri->x2;
-        t4 = tri->y3 - tri->y2;
-        f = sqrtf((t1 * t1) + (t2 * t2));
-        if ((t3 != 0.0f) || (t4 != 0.0f))
-            f /= sqrtf((t3 * t3) + (t4 * t4));
+        if (!flatF)
+        {
+            t1 = tri->x3 - (float)x2;
+            t2 = tri->y3 - y;
+            t3 = tri->x3 - tri->x2;
+            t4 = tri->y3 - tri->y2;
+            f = sqrtf((t1 * t1) + (t2 * t2));
+            if ((t3 != 0.0f) || (t4 != 0.0f))
+                f /= sqrtf((t3 * t3) + (t4 * t4));
+        }
 
-        l.c2.r = lerp(tri->c3.r, tri->c2.r, f);
-        l.c2.g = lerp(tri->c3.g, tri->c2.g, f);
-        l.c2.b = lerp(tri->c3.b, tri->c2.b, f);
-        l.c2.a = lerp(tri->c3.a, tri->c2.a, f);
+        if (!flatC)
+        {
+            l.c2.r = lerp(tri->c3.r, tri->c2.r, f);
+            l.c2.g = lerp(tri->c3.g, tri->c2.g, f);
+            l.c2.b = lerp(tri->c3.b, tri->c2.b, f);
+            l.c2.a = lerp(tri->c3.a, tri->c2.a, f);
+        }
 
-        l.u2 = lerp(tri->u3, tri->u2, f);
-        l.v2 = lerp(tri->v3, tri->v2, f);
+        l.u2 = flatU ? tri->u1 : lerp(tri->u3, tri->u2, f);
+        l.v2 = flatV ? tri->v1 : lerp(tri->v3, tri->v2, f);
 
         x1 += x1Inc;
         x2 += x2Inc;
@@ -490,9 +536,9 @@ void Softraster::renderTriangleFT(renderData_t* renderData, triangle_t* tri)
 
 void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
 {    
-    // tri->y1 = roundf(tri->y1);
-    // tri->y2 = roundf(tri->y2);
-    // tri->y3 = roundf(tri->y3);
+    tri->y1 = roundf(tri->y1);
+    tri->y2 = roundf(tri->y2);
+    tri->y3 = roundf(tri->y3);
 
     if (tri->y2 < tri->y1)
     {
@@ -573,7 +619,7 @@ void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
     if (tri->y1 != tri->y3)
         f /= tri->y3 - tri->y1;
     
-    float x = lerp(tri->x1, tri->x3, f); //tri->x1 + f * (tri->x3 - tri->x1);
+    float x = lerp(tri->x1, tri->x3, f);
     float y = tri->y2;
     
     color32_t c;

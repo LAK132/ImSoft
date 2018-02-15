@@ -30,7 +30,7 @@
 template<typename T>
 T lerp(T a, T b, uint8_t f) // [0, 255]
 {
-    return a + ((f * (b - a)) / 255);
+    return a + ((f * (b - a)) / 0xFF);
 }
 
 template<typename T>
