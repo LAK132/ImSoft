@@ -5,27 +5,6 @@
 #include "stdint.h"
 #include "math.h"
 #include "imgui.h"
-#include <TFT_22_ILI9225.h>
-
-//#define U8_TEXTURE
-
-//#define texel_t uint8_t
-
-/*typedef struct texture
-{
-    int w;
-    int h;
-    texel_t* pixels;
-} texture_t;*/
-
-//sizeof(color8_t)
-#define COLOR8 8 
-//sizeof(color16_t)
-#define COLOR16 16 
-//sizeof(color24_t)
-#define COLOR24 24 
-//sizeof(color32_t)
-#define COLOR32 32 
 
 template<typename T>
 T lerp(T a, T b, uint8_t f) // [0, 255]
@@ -65,6 +44,11 @@ struct color32_t { //16M color (true color) + 256 alpha
     }
     bool operator!=(const color32_t& rhs) const { return !(*this == rhs); }
 };
+
+#define COLOR8 sizeof(color8_t)
+#define COLOR16 sizeof(color16_t)
+#define COLOR24 sizeof(color24_t)
+#define COLOR32 sizeof(color32_t)
 
 color16_t   col8to16    (const color8_t& c);
 color24_t   col8to24    (const color8_t& c);
@@ -165,10 +149,6 @@ void convertColor(COL1& c1, COL2& c2)
 template <typename COL_T>
 struct texture_templ_t
 {
-//private: 
-//     bool setupElems = false;
-//     bool setupArr = false;
-// public:
     bool isSetup = false;
     uint8_t colorMode = 0;
     size_t w, h;
@@ -187,18 +167,15 @@ struct texture_templ_t
     {
         colorMode = sizeof(COL_T);
         col = (COL_T**)malloc(w*sizeof(COL_T*));
-        //setupArr = col != NULL;
     }
     void init(size_t x, size_t y)
     {
         w = x;
         h = y;
         pre_init();
-        //setupElems = true;
         for (size_t i = 0; i < w; i++)
         {
             col[i] = (COL_T*)malloc(h*sizeof(COL_T));
-            //setupElems &= col[i] != NULL;
         }
         isSetup = true;
     }
@@ -209,22 +186,16 @@ struct texture_templ_t
     }
     ~texture_templ_t()
     {
-        Serial.println("destrucc");
         if (col != NULL && isSetup)
         {
             for (size_t i = 0; i < w; i++)
             {
-                Serial.println(i);
-                Serial.println((uint32_t)col[i], HEX);
                 if (col[i] != NULL)
                 {
                     free(col[i]);
                     col[i] = NULL;
                 }
-                //else return;
             }
-            Serial.println((uint32_t)col, HEX);
-            col = (COL_T**)realloc(col, 0);
             free(col);
             col = NULL;
         }
@@ -298,7 +269,7 @@ struct texture_t
         switch(colorMode)
         {
             case COLOR8:
-                //ctex8.clear();
+                tex8.clear();
                 break;
             case COLOR16:
                 tex16.clear();
@@ -385,10 +356,6 @@ struct texture_t
     }
 };
 
-#if defined(ARDUINO) && defined(__cplusplus)
-  extern "C" {
-#endif
-
 extern texture_t fontAtlas;
 
 struct screen_t
@@ -471,9 +438,5 @@ public:
     static void renderRectangle(renderData_t* renderData, rectangle_t* rect);
     static void renderDrawLists(ImDrawData* drawData, screen_t* screen);
 };
-
-#if defined(ARDUINO) && defined(__cplusplus)
-  }
-#endif
 
 #endif

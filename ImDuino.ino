@@ -102,8 +102,6 @@ void setup()
 
   ImGui::MemFree(pixels);
 
-  //delay(1000);
-
   fontAtlas.pre_init(COLOR8);
   for(size_t i = 0; i < fontAtlas.tex8.w; i++)
   {
@@ -143,20 +141,15 @@ void loop()
   f += 0.05;
   if(f > 1.0f) f = 0.0f;
   
-  float deltaTime = (millis()/*/1000.0f*/) - time;
+  float deltaTime = millis() - time;
   time += deltaTime;
-  float temp = drawTime / 1000.0f;
-  float temp2 = rasterTime / 1000.0f;
   
   deltaTime -= (drawTime + rasterTime);
   
-  // ImGui::SliderFloat("float", &deltaTime, 0.0f, 10.0f);
   ImGui::Text("Draw time %f ms", drawTime / 1.0f);
   
-  // ImGui::SliderFloat("float1", &temp, 0.0f, 10.0f);
   ImGui::Text("Raster time %f ms", rasterTime / 1.0f);
 
-  // ImGui::SliderFloat("float2", &temp2, 0.0f, 10.0f);
   ImGui::Text("Remaining time %f ms", deltaTime);
   
   ImGui::SliderFloat("float3", &f, 0.0f, 1.0f);

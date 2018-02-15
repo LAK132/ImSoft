@@ -1,7 +1,6 @@
 #include "softraster.h"
 
 texture_t fontAtlas;
-//#include "Arduino.h"
 
 color16_t col8to16(const color8_t& c)
 {
