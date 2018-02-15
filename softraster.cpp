@@ -1,54 +1,174 @@
 #include "softraster.h"
 
-fontAtlas_t fontAtlas;
-#include "Arduino.h"
+texture_t fontAtlas;
+//#include "Arduino.h"
 
-uint8_t lerp(uint8_t a, uint8_t b, float f)
+color16_t col8to16(const color8_t& c)
 {
-    return a + (uint8_t)(f * (b - a)); //(uint8_t)(((1.0f - fac) * (float)a) + (fac * (float)b));
+    return (((c * 31) / 255) << 11) |
+        (((c * 63) / 255) << 5) |
+        ((c * 31) / 255);
+}
+color24_t col8to24(const color8_t& c)
+{
+    color24_t rtn;
+    rtn.r = c;
+    rtn.g = c;
+    rtn.b = c;
+    return rtn;
+}
+color8_t col16to8(const color16_t& c)
+{
+    return (((((c & 0xF800) >> 11) * 255) / 31) + 
+        ((((c & 0x07E0) >> 5 ) * 255) / 63) + 
+        (((c & 0x001F) * 255) / 31)) / 3;
+}
+color24_t col16to24(const color16_t& c)
+{
+    color24_t rtn;
+    rtn.r = (((c & 0xF800) >> 11) * 255) / 31;
+    rtn.g = (((c & 0x07E0) >> 5 ) * 255) / 63;
+    rtn.b = ((c & 0x001F) * 255) / 31;
+    return rtn;
+}
+color32_t col16to32(const color16_t& c)
+{
+    color32_t rtn;
+    rtn.r = (((c & 0xF800) >> 11) * 255) / 31;
+    rtn.g = (((c & 0x07E0) >> 5 ) * 255) / 63;
+    rtn.b = ((c & 0x001F) * 255) / 31;
+    rtn.a = 0xFF;
+    return rtn;
+}
+color8_t col24to8(const color24_t& c)
+{
+    return (c.r + c.g + c.b) / 3;
+}
+color16_t col24to16(const color24_t& c)
+{
+    return (((c.r * 31) / 255) << 11) |
+        (((c.g * 63) / 255) << 5) |
+        ((c.b * 31) / 255);
+}
+color32_t col24to32(const color24_t& c)
+{
+    color32_t rtn;
+    rtn.r = c.r;
+    rtn.g = c.g;
+    rtn.b = c.b;
+    rtn.a = 0xFF;
+    return rtn;
+}
+#if defined(COL8_ALPHACOLOR)
+color8_t col32to8(const color32_t& c)
+{
+    return (((c.r + c.g + c.b) / 3) * c.a) / 255;
+}
+color32_t col8to32(const color8_t& c)
+{
+    color32_t rtn;
+    rtn.r = c;
+    rtn.g = c;
+    rtn.b = c;
+    rtn.a = c;
+    return rtn;
+}
+#elif defined(COL8_COLOR)
+color8_t col32to8(const color32_t& c)
+{
+    return (c.r + c.g + c.b) / 3;
+}
+color32_t col8to32(const color8_t& c)
+{
+    color32_t rtn;
+    rtn.r = c;
+    rtn.g = c;
+    rtn.b = c;
+    rtn.a = 0xFF;
+    return rtn;
+}
+#else
+color8_t col32to8(const color32_t& c)
+{
+    return c.a;
+}
+color32_t alp8to32(const color8_t& c)
+{
+    color32_t rtn;
+    rtn.r = 0xFF;
+    rtn.g = 0xFF;
+    rtn.b = 0xFF;
+    rtn.a = c;
+    return rtn;
+}
+#endif
+color16_t col32to16(const color32_t& c)
+{
+    return (((c.r * 31) / 255) << 11) |
+        (((c.g * 63) / 255) << 5) |
+        ((c.b * 31) / 255);
+}
+color24_t col32to24(const color32_t& c)
+{
+    color24_t rtn;
+    rtn.r = c.r;
+    rtn.g = c.g;
+    rtn.b = c.b;
+    return rtn;
 }
 
-float lerpf(float a, float b, float f)
-{
-    return a + (f * (b - a)); //(uint8_t)(((1.0f - fac) * (float)a) + (fac * (float)b));
-}
-
-void Softraster::sampleTexture(renderData_t* renderData, pixel_t* pixel)
+void Softraster::sampleTexture(texture_t* tex, pixel_t* pixel)
 {
     uint8_t srcR = pixel->c.r;
     uint8_t srcG = pixel->c.g;
     uint8_t srcB = pixel->c.b;
     uint8_t srcA = pixel->c.a;
-    
-    if (renderData->texture)
+    if (tex)
     {
-    #if defined(TEXTURE_MODE_REPEAT)
-        int u = (int)((pixel->u * renderData->texture->w) + 0.5f) % renderData->texture->w;
-        int v = (int)((pixel->v * renderData->texture->h) + 0.5f) % renderData->texture->h;
-    #endif
-        int u = (int)((pixel->u * renderData->texture->w) + 0.5f);
-        int v = (int)((pixel->v * renderData->texture->h) + 0.5f);
-    #if defined(TEXTURE_MODE_CLAMP)
+        size_t w = *(tex->w());
+        size_t h = *(tex->h());
+    #ifdef TEXTURE_MODE_CLAMP
+        int u = (int)((pixel->u * w) + 0.5f);
+        int v = (int)((pixel->v * h) + 0.5f);
         if (u < 0) u = 0;
-        else if (u > renderData->texture->w) u = renderData->texture->w - 1;
+        else if (u > w) u = w - 1;
         if (v < 0) v = 0;
-        else if (v > renderData->texture->h) v = renderData->texture->h - 1;
+        else if (v > h) v = h - 1;
+    #else
+        int u = (int)((pixel->u * w) + 0.5f) % w;
+        int v = (int)((pixel->v * h) + 0.5f) % h;
     #endif
-        texel_t texel = renderData->texture->pixels[u + v * renderData->texture->w];
-        if (sizeof(texel_t) == 4)
+        switch(tex->colorMode)
         {
-            uint8_t tA = (texel >> IM_COL32_A_SHIFT) & 0xFF;
-            uint8_t tR = (texel >> IM_COL32_R_SHIFT) & 0xFF;
-            uint8_t tG = (texel >> IM_COL32_G_SHIFT) & 0xFF;
-            uint8_t tB = (texel >> IM_COL32_B_SHIFT) & 0xFF;
-            pixel->c.r = srcR * tR / 255;
-            pixel->c.g = srcG * tG / 255;
-            pixel->c.b = srcB * tB / 255;
-            pixel->c.a = srcA * tA / 255;
-        }
-        else
-        {
-            pixel->c.a = srcA * (uint8_t)texel / 255;
+            case COLOR8: {
+                    pixel->c.a = (srcA * tex->tex8.col[u][v]) / 255;
+                    break;
+                }
+            case COLOR16: {
+                    color24_t col1 = col16to24(tex->tex16.col[u][v]);
+                    pixel->c.r = col1.r;
+                    pixel->c.g = col1.g;
+                    pixel->c.b = col1.b;
+                    pixel->c.a = 0xFF;
+                    break;
+                }
+            case COLOR24: {
+                    color24_t col2 = tex->tex24.col[u][v];
+                    pixel->c.r = col2.r;
+                    pixel->c.g = col2.g;
+                    pixel->c.b = col2.b;
+                    pixel->c.a = 0xFF;
+                    break;
+                }
+            case COLOR32: {
+                    color32_t col3 = tex->tex32.col[u][v];
+                    pixel->c.r = lerp(srcR, col3.r, col3.a);
+                    pixel->c.g = lerp(srcG, col3.g, col3.a);
+                    pixel->c.b = lerp(srcB, col3.b, col3.a);
+                    pixel->c.a = col3.a;
+                    break;
+                }
+            default: break;
         }
     }
 }
@@ -60,29 +180,84 @@ void Softraster::renderPixel(renderData_t* renderData, pixel_t* pixel)
         (pixel->x < renderData->clipRect.x) ||
         (pixel->x >= renderData->clipRect.z))
         return;
-    
-    // Get pointer to pixel for alpha blending
-    uint16_t c = renderData->screen->buffer->col[pixel->x][pixel->y];
-    uint8_t dstR;
-    uint8_t dstG;
-    uint8_t dstB;
-    splitColor(c, dstR, dstG, dstB);
 
-    sampleTexture(renderData, pixel);
-    if (pixel->c.a == 0) return;
+    sampleTexture(renderData->texture, pixel);
     
-    uint8_t r = lerp(dstR, pixel->c.r, (float)pixel->c.a / 255.0f); 
-    uint8_t g = lerp(dstG, pixel->c.g, (float)pixel->c.a / 255.0f); 
-    uint8_t b = lerp(dstB, pixel->c.b, (float)pixel->c.a / 255.0f); 
+    if (pixel->c.a == 0) return; //Pixel won't change color if alpha is 0 so return
+    
+    texture_t* buff = renderData->screen->buffer;
+    
+    if (pixel->c.a == 255) //Skip alpha blending if alpha is 255
+    {
+        switch(buff->colorMode)
+        {
+            case COLOR8:
+                buff->tex8.col[pixel->x][pixel->y] = col32to8(pixel->c);
+                break;
+            case COLOR16:
+                buff->tex16.col[pixel->x][pixel->y] = col32to16(pixel->c);
+                break;
+            case COLOR24:
+                buff->tex24.col[pixel->x][pixel->y] = col32to24(pixel->c);
+                break;
+            case COLOR32:
+                buff->tex32.col[pixel->x][pixel->y] = pixel->c;
+                break;
+            default: return;
+        }
+    }
+    else
+    {
+        color24_t prev;
+        
+        //Convert to 24bit mode for alpha blending
+        switch(buff->colorMode)
+        {
+            case COLOR8:
+                prev = col8to24(buff->tex8.col[pixel->x][pixel->y]);
+                break;
+            case COLOR16:
+                prev = col16to24(buff->tex16.col[pixel->x][pixel->y]);
+                break;
+            case COLOR24:
+                prev = buff->tex24.col[pixel->x][pixel->y];
+                break;
+            case COLOR32:
+                prev = col32to24(buff->tex32.col[pixel->x][pixel->y]);
+                break;
+            default: return;
+        }
 
-    renderData->screen->buffer->col[pixel->x][pixel->y] = setColor(r, g, b);
+        color32_t next = pixel->c;
+        
+        next.r = lerp(prev.r, pixel->c.r, pixel->c.a); 
+        next.g = lerp(prev.g, pixel->c.g, pixel->c.a); 
+        next.b = lerp(prev.b, pixel->c.b, pixel->c.a); 
+        
+        switch(buff->colorMode) //Convert 32bit pixel to screenBuffer color mode
+        {
+            case COLOR8:
+                buff->tex8.col[pixel->x][pixel->y] = col32to8(next);
+                break;
+            case COLOR16:
+                buff->tex16.col[pixel->x][pixel->y] = col32to16(next);
+                break;
+            case COLOR24:
+                buff->tex24.col[pixel->x][pixel->y] = col32to24(next);
+                break;
+            case COLOR32:
+                buff->tex32.col[pixel->x][pixel->y] = next;
+                break;
+            default: return;
+        }
+    }
 }
 
 void Softraster::renderLine(renderData_t* renderData, line_t* line)
 {
     //Round x vals
-    line->x1 = roundf(line->x1);
-    line->x2 = roundf(line->x2);
+    // line->x1 = roundf(line->x1);
+    // line->x2 = roundf(line->x2);
 
     //Discard line if it is outside the frame buffer    
     if ((line->x2 < 0) || 
@@ -98,51 +273,37 @@ void Softraster::renderLine(renderData_t* renderData, line_t* line)
         (line->y >= renderData->clipRect.w))
         return;
 
-    //See if we can do an optimised draw call
-    /*if ((line->c1 == line->c2) && (line->u1 == line->u2) && (line->v1 == line->v2))
-    {
-        pixel_t pixel;
-        pixel.c = line->c1;
-        pixel.u = line->u1;
-        pixel.v = line->v1;
-        sampleTexture(renderData, &pixel);
-        uint8_t r = (pixel.c.r * pixel.c.a) / 255;
-        uint8_t g = (pixel.c.g * pixel.c.a) / 255;
-        uint8_t b = (pixel.c.b * pixel.c.a) / 255;
-        drawLine(line->x1, line->y, line->x2, line->y, setColor(r, g, b));
-        return;
-    }*/
-
     pixel_t pixel;
-    color_t c;
+    color32_t c;
     float u;
     float v;
     float f;
-
-    Serial.print("LX1: ");Serial.println(line->x1);
-    Serial.print("LX2: ");Serial.println(line->x2);
-    Serial.print("LY: ");Serial.println(line->y);
+    
+    bool optimC = (line->c1 == line->c2);
+    bool optimU = (line->u1 == line->u2);
+    bool optimV = (line->v1 == line->v2);
+    bool optimF = optimC && optimU && optimV;
     
     for (float x = line->x1; x < line->x2; x++)
     {
         //Interpolation factor
-        f = fmaxf((x - line->x1) / (line->x2 - line->x1), 0.0f);
+        if(!optimF)
+            f = fmaxf((x - line->x1) / (line->x2 - line->x1), 0.0f);
 
-        c.r = lerp(line->c1.r, line->c2.r, f);
-        c.g = lerp(line->c1.g, line->c2.g, f);
-        c.b = lerp(line->c1.b, line->c2.b, f);
-        c.a = lerp(line->c1.a, line->c2.a, f);
+        if(optimC)
+        {
+            c = line->c1;
+        }
+        else
+        {
+            c.r = lerp(line->c1.r, line->c2.r, f);
+            c.g = lerp(line->c1.g, line->c2.g, f);
+            c.b = lerp(line->c1.b, line->c2.b, f);
+            c.a = lerp(line->c1.a, line->c2.a, f);
+        }
 
-        u = lerpf(line->u1, line->u2, f);
-        v = lerpf(line->v1, line->v2, f);
-
-//        c.r = line->c1.r + (uint8_t)(f * (line->c2.r - line->c1.r));
-//        c.g = line->c1.g + (uint8_t)(f * (line->c2.g - line->c1.g));
-//        c.b = line->c1.b + (uint8_t)(f * (line->c2.b - line->c1.b));
-//        c.a = lline->c1.a + (uint8_t)(f * (line->c2.a - line->c1.a));
-//
-//        u = line->u1 + f * (line->u2 - line->u1);
-//        v = line->v1 + f * (line->v2 - line->v1);
+        u = optimU ? line->u1 : lerp(line->u1, line->u2, f);
+        v = optimV ? line->v1 : lerp(line->v1, line->v2, f);
 
         pixel.x = (int)x;
         pixel.y = (int)line->y;
@@ -154,29 +315,12 @@ void Softraster::renderLine(renderData_t* renderData, line_t* line)
 }
 
 void Softraster::renderTriangleFB(renderData_t* renderData, triangle_t* tri)
-{
-    //See if we can do an optimised draw call
-    /*if ((tri->c1 == tri->c2) && (tri->c1 == tri->c3) && 
-        (tri->u1 == tri->u2) && (tri->u1 == tri->u3) && 
-        (tri->v1 == tri->v2) && (tri->v1 == tri->v3))
-    {
-        pixel_t pixel;
-        pixel.c = tri->c1;
-        pixel.u = tri->u1;
-        pixel.v = tri->v1;
-        sampleTexture(renderData, &pixel);
-        uint8_t r = (pixel.c.r * pixel.c.a) / 255;
-        uint8_t g = (pixel.c.g * pixel.c.a) / 255;
-        uint8_t b = (pixel.c.b * pixel.c.a) / 255;
-        fillTriangle(tri->x1, tri->y1, tri->x2, tri->y2, tri->x3, tri->y3, setColor(r, g, b));
-        return;
-    }*/
-    
+{    
     if (tri->x3 < tri->x2)
     {
         float x = tri->x2;
         float y = tri->y2;
-        color_t c = tri->c2;
+        color32_t c = tri->c2;
         float u = tri->u2;
         float v = tri->v2;
         
@@ -192,8 +336,6 @@ void Softraster::renderTriangleFB(renderData_t* renderData, triangle_t* tri)
         tri->u3 = u;
         tri->v3 = v;
     }
-    
-    //fillTriangle(tri->x1, tri->y1, tri->x2, tri->y2, tri->x3, tri->y3, setColor(tri->c1.r, tri->c1.g, tri->c1.b));
 
     float x1Inc = tri->x2 - tri->x1;
     x1Inc /= tri->y2 - tri->y1;
@@ -214,17 +356,17 @@ void Softraster::renderTriangleFB(renderData_t* renderData, triangle_t* tri)
         if(tri->y1 != tri->y2)
           f /= tri->y2 - tri->y1;   
 
-        l.x1 = lerpf(tri->x1, tri->x2, f); //x1;
-        l.x2 = lerpf(tri->x1, tri->x3, f); //x2;
+        l.x1 = lerp(tri->x1, tri->x2, f); //x1;
+        l.x2 = lerp(tri->x1, tri->x3, f); //x2;
         l.y = y;
 
-        //top from current-left
+        //top from current-start
         float t1 = tri->x1 - x1;
         float t2 = tri->y1 - y;
         //left from top
         float t3 = tri->x2 - tri->x1;
         float t4 = tri->y2 - tri->y1;
-        //(dist top from cur-left)/(dist left from top)
+        //(dist top from cur-start)/(dist left from top)
         f = sqrtf((t1 * t1) + (t2 * t2));
         if ((t3 != 0.0f) || (t4 != 0.0f))
             f /= sqrtf((t3 * t3) + (t4 * t4));
@@ -234,16 +376,16 @@ void Softraster::renderTriangleFB(renderData_t* renderData, triangle_t* tri)
         l.c1.b = lerp(tri->c1.b, tri->c2.b, f);
         l.c1.a = lerp(tri->c1.a, tri->c2.a, f);
 
-        l.u1 = lerpf(tri->u1, tri->u2, f);
-        l.v1 = lerpf(tri->v1, tri->v2, f);
+        l.u1 = lerp(tri->u1, tri->u2, f);
+        l.v1 = lerp(tri->v1, tri->v2, f);
 
-        //top from current-right
+        //top from current-end
         t1 = tri->x1 - (float)x2;
         t2 = tri->y1 - y;
         //right from top
         t3 = tri->x3 - tri->x1;
         t4 = tri->y3 - tri->y1;
-        //(dist top from cur-right)/(dist right from top)
+        //(dist top from cur-end)/(dist right from top)
         f = sqrtf((t1 * t1) + (t2 * t2));
         if ((t3 != 0.0f) || (t4 != 0.0f))
             f /= sqrtf((t3 * t3) + (t4 * t4));
@@ -253,40 +395,22 @@ void Softraster::renderTriangleFB(renderData_t* renderData, triangle_t* tri)
         l.c2.b = lerp(tri->c1.b, tri->c3.b, f);
         l.c2.a = lerp(tri->c1.a, tri->c3.a, f);
 
-        l.u2 = lerpf(tri->u1, tri->u3, f);
-        l.v2 = lerpf(tri->v1, tri->v3, f); 
+        l.u2 = lerp(tri->u1, tri->u3, f);
+        l.v2 = lerp(tri->v1, tri->v3, f); 
 
         x1 += x1Inc;
         x2 += x2Inc;
-        //drawLine(l.x1, l.y, l.x2, l.y, setColor(l.c1.r, l.c1.g, l.c1.b));
         renderLine(renderData, &l);
     }
 }
 
 void Softraster::renderTriangleFT(renderData_t* renderData, triangle_t* tri)
-{
-    //See if we can do an optimised draw call
-    /*if ((tri->c1 == tri->c2) && (tri->c1 == tri->c3) && 
-        (tri->u1 == tri->u2) && (tri->u1 == tri->u3) && 
-        (tri->v1 == tri->v2) && (tri->v1 == tri->v3))
-    {
-        pixel_t pixel;
-        pixel.c = tri->c1;
-        pixel.u = tri->u1;
-        pixel.v = tri->v1;
-        sampleTexture(renderData, &pixel);
-        uint8_t r = (pixel.c.r * pixel.c.a) / 255;
-        uint8_t g = (pixel.c.g * pixel.c.a) / 255;
-        uint8_t b = (pixel.c.b * pixel.c.a) / 255;
-        fillTriangle(tri->x1, tri->y1, tri->x2, tri->y2, tri->x3, tri->y3, setColor(r, g, b));
-        return;
-    }*/
-    
+{    
     if (tri->x2 < tri->x1)
     {
         float x = tri->x1;
         float y = tri->y1;
-        color_t c = tri->c1;
+        color32_t c = tri->c1;
         float u = tri->u1;
         float v = tri->v1;
         
@@ -322,8 +446,8 @@ void Softraster::renderTriangleFT(renderData_t* renderData, triangle_t* tri)
         if(tri->y1 != tri->y3)
           f /= tri->y3 - tri->y1;   
 
-        l.x1 = lerpf(tri->x1, tri->x3, f); //x1;
-        l.x2 = lerpf(tri->x2, tri->x3, f); //x2;
+        l.x1 = lerp(tri->x1, tri->x3, f); //x1;
+        l.x2 = lerp(tri->x2, tri->x3, f); //x2;
         l.y = y;
 
         float t1 = tri->x3 - x1;
@@ -339,8 +463,8 @@ void Softraster::renderTriangleFT(renderData_t* renderData, triangle_t* tri)
         l.c1.b = lerp(tri->c3.b, tri->c1.b, f);
         l.c1.a = lerp(tri->c3.a, tri->c1.a, f);
 
-        l.u1 = lerpf(tri->u3, tri->u1, f);
-        l.v1 = lerpf(tri->v3, tri->v1, f);
+        l.u1 = lerp(tri->u3, tri->u1, f);
+        l.v1 = lerp(tri->v3, tri->v1, f);
 
         t1 = tri->x3 - (float)x2;
         t2 = tri->y3 - y;
@@ -355,44 +479,26 @@ void Softraster::renderTriangleFT(renderData_t* renderData, triangle_t* tri)
         l.c2.b = lerp(tri->c3.b, tri->c2.b, f);
         l.c2.a = lerp(tri->c3.a, tri->c2.a, f);
 
-        l.u2 = lerpf(tri->u3, tri->u2, f);
-        l.v2 = lerpf(tri->v3, tri->v2, f);
+        l.u2 = lerp(tri->u3, tri->u2, f);
+        l.v2 = lerp(tri->v3, tri->v2, f);
 
         x1 += x1Inc;
         x2 += x2Inc;
-        //drawLine(l.x1, l.y, l.x2, l.y, setColor(l.c1.r, l.c1.g, l.c1.b));
         renderLine(renderData, &l);
     }
 }
 
 void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
-{
-    //See if we can do an optimised draw call
-    /*if ((tri->c1 == tri->c2) && (tri->c1 == tri->c3) && 
-        (tri->u1 == tri->u2) && (tri->u1 == tri->u3) && 
-        (tri->v1 == tri->v2) && (tri->v1 == tri->v3))
-    {
-        pixel_t pixel;
-        pixel.c = tri->c1;
-        pixel.u = tri->u1;
-        pixel.v = tri->v1;
-        sampleTexture(renderData, &pixel);
-        uint8_t r = (pixel.c.r * pixel.c.a) / 255;
-        uint8_t g = (pixel.c.g * pixel.c.a) / 255;
-        uint8_t b = (pixel.c.b * pixel.c.a) / 255;
-        fillTriangle(tri->x1, tri->y1, tri->x2, tri->y2, tri->x3, tri->y3, setColor(r, g, b));
-        return;
-    }*/
-    
-    tri->y1 = roundf(tri->y1);
-    tri->y2 = roundf(tri->y2);
-    tri->y3 = roundf(tri->y3);
+{    
+    // tri->y1 = roundf(tri->y1);
+    // tri->y2 = roundf(tri->y2);
+    // tri->y3 = roundf(tri->y3);
 
     if (tri->y2 < tri->y1)
     {
         float x = tri->x1;
         float y = tri->y1;
-        color_t c = tri->c1;
+        color32_t c = tri->c1;
         float u = tri->u1;
         float v = tri->v1;
         
@@ -413,7 +519,7 @@ void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
     {
         float x = tri->x1;
         float y = tri->y1;
-        color_t c = tri->c1;
+        color32_t c = tri->c1;
         float u = tri->u1;
         float v = tri->v1;
         
@@ -434,7 +540,7 @@ void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
     {
         float x = tri->x2;
         float y = tri->y2;
-        color_t c = tri->c2;
+        color32_t c = tri->c2;
         float u = tri->u2;
         float v = tri->v2;
         
@@ -453,14 +559,12 @@ void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
 
     if (tri->y2 == tri->y3)
     {
-        //fillTriangle(tri->x1, tri->y1, tri->x2, tri->y2, tri->x3, tri->y3, setColor(tri->c1.r, tri->c1.g, tri->c1.b));
         renderTriangleFB(renderData, tri);
         return;
     }
 
     if (tri->y1 == tri->y2)
     {
-        //fillTriangle(tri->x1, tri->y1, tri->x2, tri->y2, tri->x3, tri->y3, setColor(tri->c1.r, tri->c1.g, tri->c1.b));
         renderTriangleFT(renderData, tri);
         return;
     }
@@ -468,34 +572,22 @@ void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
     float f = tri->y2 - tri->y1;
     if (tri->y1 != tri->y3)
         f /= tri->y3 - tri->y1;
-    Serial.print("F: ");Serial.println(f);
-    float x = lerpf(tri->x1, tri->x3, f); //tri->x1 + f * (tri->x3 - tri->x1);
+    
+    float x = lerp(tri->x1, tri->x3, f); //tri->x1 + f * (tri->x3 - tri->x1);
     float y = tri->y2;
     
-    color_t c;
+    color32_t c;
 
     c.r = lerp(tri->c1.r, tri->c3.r, f);
     c.g = lerp(tri->c1.g, tri->c3.g, f);
     c.b = lerp(tri->c1.b, tri->c3.b, f);
     c.a = lerp(tri->c1.a, tri->c3.a, f);
 
-    float u = lerpf(tri->u1, tri->u3, f);
-    float v = lerpf(tri->v1, tri->v3, f);
-    
-//    c.r = tri->c1.r + (uint8_t)(f * (tri->c3.r - tri->c1.r));
-//    c.g = tri->c1.g + (uint8_t)(f * (tri->c3.g - tri->c1.g));
-//    c.b = tri->c1.b + (uint8_t)(f * (tri->c3.b - tri->c1.b));
-//    c.a = tri->c1.a + (uint8_t)(f * (tri->c3.a - tri->c1.a));
-//    
-//    float u = tri->u1 + (f * (tri->u3 - tri->u1));
-//    float v = tri->v1 + (f * (tri->v3 - tri->v1));
+    float u = lerp(tri->u1, tri->u3, f);
+    float v = lerp(tri->v1, tri->v3, f);
 
     triangle_t flat;
 
-    Serial.print("X1: "); Serial.println(tri->x1);
-    Serial.print("X2: "); Serial.println(tri->x2);
-    Serial.print("X3: "); Serial.println(x);
-    Serial.print("X4: "); Serial.println(tri->x3);
     flat.x1 = tri->x1;
     flat.y1 = tri->y1;
     flat.c1 = tri->c1;
@@ -511,7 +603,6 @@ void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
     flat.c3 = c;
     flat.u3 = u;
     flat.v3 = v;
-    //fillTriangle(flat.x1, flat.y1, flat.x2, flat.y2, flat.x3, flat.y3, setColor(flat.c1.r, flat.c1.g, flat.c1.b));
     renderTriangleFB(renderData, &flat);
 
     flat.x1 = tri->x2;
@@ -529,7 +620,6 @@ void Softraster::renderTriangle(renderData_t* renderData, triangle_t* tri)
     flat.c3 = tri->c3;
     flat.u3 = tri->u3;
     flat.v3 = tri->v3;
-    //fillTriangle(flat.x1, flat.y1, flat.x2, flat.y2, flat.x3, flat.y3, setColor(flat.c1.r, flat.c1.g, flat.c1.b));
     renderTriangleFT(renderData, &flat);
 }
 
@@ -546,22 +636,6 @@ void Softraster::renderRectangle(renderData_t* renderData, rectangle_t* rect)
         (rect->x1 >= renderData->clipRect.z) || 
         (rect->y1 >= renderData->clipRect.w))
         return;
-
-    //See if we can do an optimised draw call
-    /*if ((rect->u1 == rect->u2) && (rect->v1 == rect->v2));
-    {
-        pixel_t pixel;
-        pixel.c = rect->c;
-        pixel.u = rect->u1;
-        pixel.v = rect->v1;
-        sampleTexture(renderData, &pixel);
-        uint8_t r = (pixel.c.r * pixel.c.a) / 255;
-        uint8_t g = (pixel.c.g * pixel.c.a) / 255;
-        uint8_t b = (pixel.c.b * pixel.c.a) / 255;
-        TFT_22_ILI9225* tft = renderData->screen->tft;
-        tft->fillRectangle(rect->x1, rect->y1, rect->x2, rect->y2, tft->setColor(r, g, b));
-        return;
-    }*/
                     
     for (float y = rect->y1; y < rect->y2; y++)
     {
@@ -576,7 +650,7 @@ void Softraster::renderRectangle(renderData_t* renderData, rectangle_t* rect)
 
         float f = (y - rect->y1) / (rect->y2 - rect->y1);
 
-        l.v1 = lerpf(rect->v1, rect->v2, f);//rect->v1 + f * (rect->v2 - rect->v1);
+        l.v1 = lerp(rect->v1, rect->v2, f);
         l.v2 = l.v1;
         
         renderLine(renderData, &l);
@@ -609,12 +683,11 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
             {
                 renderData_t renderData;
                 renderData.screen = screen;
-                renderData.texture = (fontAtlas_t*)pcmd->TextureId; //&fontAtlas;
+                renderData.texture = (texture_t*)pcmd->TextureId;
                 renderData.clipRect = pcmd->ClipRect;
 
                 for(unsigned int i = 0; i < pcmd->ElemCount; i += 3)
                 {
-                    //Serial.println(i);
                     const ImDrawVert* verts[] =
                     {
                         &vtx_buffer[idx_buffer[i]],
@@ -687,7 +760,6 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
                             rect.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
                             rect.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
                             rect.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
-                            //Serial.println("Rect");
                             renderRectangle(&renderData, &rect);
                             i += 3;
                             continue;
@@ -719,9 +791,6 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
                     tri.c3.g = (verts[2]->col >> IM_COL32_G_SHIFT) & 0xFF;
                     tri.c3.b = (verts[2]->col >> IM_COL32_B_SHIFT) & 0xFF;
                     tri.c3.a = (verts[2]->col >> IM_COL32_A_SHIFT) & 0xFF;
-//                    Serial.print("Tri");
-//                    Serial.println(verts[0]->col);
-                    //fillTriangle(tri.x1, tri.y1, tri.x2, tri.y2, tri.x3, tri.y3, setColor(tri.c1.r, tri.c1.g, tri.c1.b));
                     renderTriangle(&renderData, &tri);
                 }
             }

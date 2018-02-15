@@ -7,13 +7,9 @@
 #include "imgui.h"
 #include <TFT_22_ILI9225.h>
 
-#ifdef __cplusplus
-  extern "C" {
-#endif
-
 //#define U8_TEXTURE
 
-#define texel_t uint8_t
+//#define texel_t uint8_t
 
 /*typedef struct texture
 {
@@ -22,84 +18,390 @@
     texel_t* pixels;
 } texture_t;*/
 
-struct fontAtlas_t
+//sizeof(color8_t)
+#define COLOR8 8 
+//sizeof(color16_t)
+#define COLOR16 16 
+//sizeof(color24_t)
+#define COLOR24 24 
+//sizeof(color32_t)
+#define COLOR32 32 
+
+template<typename T>
+T lerp(T a, T b, uint8_t f) // [0, 255]
 {
-    const texel_t* pixels;
-    int w, h;
+    return a + ((f * (b - a)) / 255);
+}
+
+template<typename T>
+T lerp(T a, T b, float f) // [0.0f, 1.0f]
+{
+    return a + (f * (b - a));
+}
+
+typedef uint8_t color8_t; //256 color
+
+typedef uint16_t color16_t; //65k color (high color)
+
+struct color24_t { //16M color (true color)
+    color8_t r;
+    color8_t g;
+    color8_t b;
+    bool operator==(const color24_t& rhs) const
+    {
+        return (r == rhs.r) && (g == rhs.g) && (b == rhs.b);
+    }
+    bool operator!=(const color24_t& rhs) const { return !(*this == rhs); }
 };
 
-extern fontAtlas_t fontAtlas;
-
-struct color_t
-{
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t a;
-    bool operator==(const color_t& rhs) const
+struct color32_t { //16M color (true color) + 256 alpha
+    color8_t r;
+    color8_t g;
+    color8_t b;
+    color8_t a;
+    bool operator==(const color32_t& rhs) const
     {
         return (r == rhs.r) && (g == rhs.g) && (b == rhs.b) && (a == rhs.a);
     }
-    bool operator!=(const color_t& rhs) const { return !(*this == rhs); }
+    bool operator!=(const color32_t& rhs) const { return !(*this == rhs); }
 };
 
-struct texture_t
+color16_t   col8to16    (const color8_t& c);
+color24_t   col8to24    (const color8_t& c);
+color32_t   col8to32    (const color8_t& c);
+color32_t   alp8to32    (const color8_t& c);
+color8_t    col16to8    (const color16_t& c);
+color24_t   col16to24   (const color16_t& c);
+color32_t   col16to32   (const color16_t& c);
+color8_t    col24to8    (const color24_t& c);
+color16_t   col24to16   (const color24_t& c);
+color32_t   col24to32   (const color24_t& c);
+color8_t    col32to8    (const color32_t& c);
+color16_t   col32to16   (const color32_t& c);
+color24_t   col32to24   (const color32_t& c);
+
+template<typename COL1, typename COL2>
+void convertColor(COL1& c1, COL2& c2)
 {
-    int w, h;
-    uint16_t** col;
-    /*bool getUpd(int x, int y)
-    { 
-        return col[x][y].a > 0x0; 
-    }
-    void setCol(int x, int y, color_t c)
+    switch(c1->colorMode)
     {
-        if (col[x][y] != c)
-        {
-            col[x][y] = c;
-            col[x][y].a = 0xFF;
-        }
+        case COLOR8:
+            switch(c2->colorMode)
+            {
+                case COLOR8:
+                    c2 = c1;
+                    break;
+                case COLOR16:
+                    c2 = col8to16(c1);
+                    break;
+                case COLOR24:
+                    c2 = col8to24(c1);
+                    break;
+                case COLOR32:
+                    c2 = col8to32(c1);
+                    break;
+                default: return;
+            }
+            break;
+        case COLOR16:
+            switch(c2->colorMode)
+            {
+                case COLOR8:
+                    c2 = col16to8(c1);
+                    break;
+                case COLOR16:
+                    c2 = c1;
+                    break;
+                case COLOR24:
+                    c2 = col16to24(c1);
+                    break;
+                case COLOR32:
+                    c2 = col16to32(c1);
+                    break;
+                default: return;
+            }
+            break;
+        case COLOR24:
+            switch(c2->colorMode)
+            {
+                case COLOR8:
+                    c2 = col24to8(c1);
+                    break;
+                case COLOR16:
+                    c2 = col24to16(c1);
+                    break;
+                case COLOR24:
+                    c2 = c1;
+                    break;
+                case COLOR32:
+                    c2 = col24to32(c1);
+                    break;
+                default: return;
+            }
+            break;
+        case COLOR32:
+            switch(c2->colorMode)
+            {
+                case COLOR8:
+                    c2 = col32to8(c1);
+                    break;
+                case COLOR16:
+                    c2 = col32to16(c1);
+                    break;
+                case COLOR24:
+                    c2 = col32to24(c1);
+                    break;
+                case COLOR32:
+                    c2 = c1;
+                    break;
+                default: return;
+            }
+            break;
+        default: return;
     }
-    bool getCol(int x, int y, color_t& c)
-    {
-        c = col[x][y];
-        bool upd = getUpd(x, y);
-        col[x][y].a = 0x0;
-        return upd;
-    }*/
+}
+
+//Template the texture struct so we can use different color modes/types
+template <typename COL_T>
+struct texture_templ_t
+{
+//private: 
+//     bool setupElems = false;
+//     bool setupArr = false;
+// public:
+    bool isSetup = false;
+    uint8_t colorMode = 0;
+    size_t w, h;
+    COL_T** col = NULL;
     void clear()
     {
         for(int i = 0; i < w; i++)
         {
             for(int j = 0; j < h; j++)
             {
-                col[i][j] = 0x0;
+                memset(&(col[i][j]), 0x0, colorMode);
             }
         }
     }
-    texture_t(){}
-    texture_t(int x, int y)
+    void pre_init()
+    {
+        colorMode = sizeof(COL_T);
+        col = (COL_T**)malloc(w*sizeof(COL_T*));
+        //setupArr = col != NULL;
+    }
+    void init(size_t x, size_t y)
     {
         w = x;
         h = y;
-        col = (uint16_t**)malloc(x*sizeof(uint16_t*));
-        for (int i = 0; i < x; i++)
+        pre_init();
+        //setupElems = true;
+        for (size_t i = 0; i < w; i++)
         {
-            col[i] = (uint16_t*)malloc(y*sizeof(uint16_t));
+            col[i] = (COL_T*)malloc(h*sizeof(COL_T));
+            //setupElems &= col[i] != NULL;
         }
+        isSetup = true;
+    }
+    texture_templ_t() : col(NULL), isSetup(false){}
+    texture_templ_t(size_t x, size_t y)
+    {
+        init(x, y);
+    }
+    ~texture_templ_t()
+    {
+        Serial.println("destrucc");
+        if (col != NULL && isSetup)
+        {
+            for (size_t i = 0; i < w; i++)
+            {
+                Serial.println(i);
+                Serial.println((uint32_t)col[i], HEX);
+                if (col[i] != NULL)
+                {
+                    free(col[i]);
+                    col[i] = NULL;
+                }
+                //else return;
+            }
+            Serial.println((uint32_t)col, HEX);
+            col = (COL_T**)realloc(col, 0);
+            free(col);
+            col = NULL;
+        }
+        isSetup = false;
     }
 };
+
+typedef texture_templ_t<color8_t> texture8_t;
+typedef texture_templ_t<const color8_t> ctexture8_t;
+typedef texture_templ_t<color16_t> texture16_t;
+typedef texture_templ_t<color24_t> texture24_t;
+typedef texture_templ_t<color32_t> texture32_t;
+
+//Allows multiple texture modes/types to be stored in a type that can be handled by ImGui
+struct texture_t
+{
+    bool isSetup = false;
+    uint8_t colorMode = 0;
+    union 
+    {
+        texture8_t tex8;
+        ctexture8_t ctex8;
+        texture16_t tex16;
+        texture24_t tex24;
+        texture32_t tex32;
+    };
+    size_t* w() 
+    {
+        switch(colorMode)
+        {
+            case COLOR8:
+                return &tex8.w;
+                break;
+            case COLOR16:
+                return &tex16.w;
+                break;
+            case COLOR24:
+                return &tex24.w;
+                break;
+            case COLOR32:
+                return &tex32.w;
+                break;
+            default: 
+                return NULL;
+                break;
+        }
+    }
+    size_t* h() 
+    {
+        switch(colorMode)
+        {
+            case COLOR8:
+                return &tex8.h;
+                break;
+            case COLOR16:
+                return &tex16.h;
+                break;
+            case COLOR24:
+                return &tex24.h;
+                break;
+            case COLOR32:
+                return &tex32.h;
+                break;
+            default: 
+                return NULL;
+                break;
+        }
+    }
+    void clear()
+    {
+        switch(colorMode)
+        {
+            case COLOR8:
+                //ctex8.clear();
+                break;
+            case COLOR16:
+                tex16.clear();
+                break;
+            case COLOR24:
+                tex24.clear();
+                break;
+            case COLOR32:
+                tex32.clear();
+                break;
+            default: break;
+        }
+    }
+    void pre_init(uint8_t mode)
+    {
+        colorMode = mode;
+        switch(colorMode)
+        {
+            case COLOR8:
+                tex8.pre_init();
+                break;
+            case COLOR16:
+                tex16.pre_init();
+                break;
+            case COLOR24:
+                tex24.pre_init();
+                break;
+            case COLOR32:
+                tex32.pre_init();
+                break;
+            default: break;
+        }
+        isSetup = true;
+    }
+    void init(size_t x, size_t y, uint8_t mode)
+    {
+        colorMode = mode;
+        switch(colorMode)
+        {
+            case COLOR8:
+                tex8.init(x, y);
+                break;
+            case COLOR16:
+                tex16.init(x, y);
+                break;
+            case COLOR24:
+                tex24.init(x, y);
+                break;
+            case COLOR32:
+                tex32.init(x, y);
+                break;
+            default: break;
+        }
+        isSetup = true;
+    }
+    texture_t() : isSetup(false){}
+    texture_t(size_t x, size_t y, uint8_t mode)
+    {
+        init(x, y, mode);
+    }
+    ~texture_t()
+    {
+        if (isSetup)
+        {
+            switch(colorMode)
+            {
+                case COLOR8:
+                    delete &tex8;
+                    break;
+                case COLOR16:
+                    delete &tex16;
+                    break;
+                case COLOR24:
+                    delete &tex24;
+                    break;
+                case COLOR32:
+                    delete &tex32;
+                    break;
+                default: break;
+            }
+        }
+        memset(&tex32, NULL, sizeof(tex32));
+        isSetup = false;
+    }
+};
+
+#if defined(ARDUINO) && defined(__cplusplus)
+  extern "C" {
+#endif
+
+extern texture_t fontAtlas;
 
 struct screen_t
 {
     texture_t* buffer;
-    uint16_t w;
-    uint16_t h;
+    size_t w;
+    size_t h;
 };
 
 struct renderData_t
 {
     screen_t* screen;
-    fontAtlas_t* texture;
+    texture_t* texture;
     ImVec4 clipRect;
 };
 
@@ -107,7 +409,7 @@ struct pixel_t
 {
     int x;
     int y;
-    color_t c;
+    color32_t c;
     float u;
     float v;
 };
@@ -117,8 +419,8 @@ struct line_t
     float x1;
     float x2;
     float y;
-    color_t c1;
-    color_t c2;
+    color32_t c1;
+    color32_t c2;
     float u1;
     float u2;
     float v1;
@@ -133,9 +435,9 @@ struct triangle_t
     float y2;
     float x3;
     float y3;
-    color_t c1;
-    color_t c2;
-    color_t c3;
+    color32_t c1;
+    color32_t c2;
+    color32_t c3;
     float u1;
     float v1;
     float u2;
@@ -150,28 +452,27 @@ struct rectangle_t
     float y1;
     float x2;
     float y2;
-    color_t c;
+    color32_t c;
     float u1;
     float v1;
     float u2;
     float v2;
 };
 
-class Softraster : public TFT_22_ILI9225
+class Softraster
 {
 public:
-    using TFT_22_ILI9225::TFT_22_ILI9225;
-    void sampleTexture(renderData_t* renderData, pixel_t* pixel);
-    void renderPixel(renderData_t* renderData, pixel_t* pixel);
-    void renderLine(renderData_t* renderData, line_t* line);
-    void renderTriangleFB(renderData_t* renderData, triangle_t* tri);
-    void renderTriangleFT(renderData_t* renderData, triangle_t* tri);
-    void renderTriangle(renderData_t* renderData, triangle_t* tri);
-    void renderRectangle(renderData_t* renderData, rectangle_t* rect);
-    void renderDrawLists(ImDrawData* drawData, screen_t* screen);
+    static void sampleTexture(texture_t* tex, pixel_t* pixel);
+    static void renderPixel(renderData_t* renderData, pixel_t* pixel);
+    static void renderLine(renderData_t* renderData, line_t* line);
+    static void renderTriangleFB(renderData_t* renderData, triangle_t* tri);
+    static void renderTriangleFT(renderData_t* renderData, triangle_t* tri);
+    static void renderTriangle(renderData_t* renderData, triangle_t* tri);
+    static void renderRectangle(renderData_t* renderData, rectangle_t* rect);
+    static void renderDrawLists(ImDrawData* drawData, screen_t* screen);
 };
 
-#ifdef __cplusplus
+#if defined(ARDUINO) && defined(__cplusplus)
   }
 #endif
 
