@@ -8,16 +8,7 @@
 #define SMALL_ATLAS
 #include "fontAtlas.h"
 
-const uint8_t HSPICLK = 14;
-const uint8_t HSPICS0 = 15;
-const uint8_t HSPIMISO = 12;
-const uint8_t HSPIMOSI = 13;
-const uint8_t HSPIHD = 4;
-const uint8_t HSPIWP = 2;
-
-const uint8_t ADC2CH1 = 0; 
-const uint8_t BOOTBTN = ADC2CH1;
-const uint8_t LEDPIN = 16;
+#include "ESP32pinout.h"
 
 const uint8_t TFTLED = 25;
 const uint8_t TFTRST = 26;
@@ -32,10 +23,11 @@ const uint8_t TFTSDI = HSPIMOSI;
 texture_t screenBuffer;
 
 TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTSDI, TFTCLK, TFTLED, 128);
+//SPIClass tftspi(HSPI);
 
 void updateScreen()
 {
-  tft.drawBitmap(screenBuffer.tex16.col, screenBuffer.tex16.w, screenBuffer.tex16.h);
+  tft.drawBitmap(0, 0, screenBuffer.tex16.col, screenBuffer.tex16.w, screenBuffer.tex16.h);
 }
 
 unsigned long drawTime;
@@ -63,8 +55,8 @@ void setup()
 
   //SPI.setClockDivider(SPI_CLOCK_DIV2);
   //SPI.begin();
-  
-  tft.begin();
+  //tftspi.begin(TFTCLK, HSPIMISO, TFTSDI, TFTCS);
+  tft.begin(/*tftspi*/);
   tft.setFont(Terminal6x8);
   tft.setOrientation(3);
   digitalWrite(TFTLED, HIGH);
