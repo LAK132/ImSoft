@@ -722,75 +722,57 @@ void Softraster::renderRectangle(renderData_t* renderData, rectangle_t* rect)
 }
 
 void Softraster::renderTrapezoid(renderData_t* renderData, trapezoid_t* trap)
-{   
-    const uint8_t tl = 0, tr = 1, br = 2, bl = 3;
-    vert_t* verts[4] = {
-        &trap->v1,  //top left
-        &trap->v2,  //top right
-        &trap->v3,  //bottom right
-        &trap->v4   //bottom left
-    };
-
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        for (uint8_t j = i; j < 4; j++)
-        {
-            if (verts[i]->y > verts[j]->y)
-            {
-                vert_t* v = verts[i];
-                verts[i] = verts[j];
-                verts[j] = v;
-            }
-        }
-    }
-
-    if (verts[tl]->x > verts[tr]->x)
-    {
-        vert_t* v = verts[tr];
-        verts[tr] = verts[tl];
-        verts[tl] = v;
-    }
-
-    if (verts[bl]->x > verts[br]->x)
-    {
-        vert_t* v = verts[br];
-        verts[br] = verts[bl];
-        verts[bl] = v;
-    }
-
-    if (verts[tl]->y != verts[tr]->y || verts[bl]->y != verts[br]->y)
-    {
+{
+    if ((trap->v3.x < 0) || 
+        (trap->v3.y < 0) ||
+        (trap->v1.x >= renderData->screen->w) || 
+        (trap->v1.y >= renderData->screen->h))
         return;
-    }
+
+    if ((trap->v3.x < renderData->clipRect.x) ||
+        (trap->v3.y < renderData->clipRect.y) ||
+        (trap->v1.x >= renderData->clipRect.z) || 
+        (trap->v1.y >= renderData->clipRect.w))
+        return;
+    
+    vert_t& topLeft = trap->v1;
+    vert_t& topRight = trap->v2;
+    vert_t& bottomRight = trap->v3;
+    vert_t& bottomLeft = trap->v4;
 
     // No float trapezoid renderer by pervorgnsen https://gist.github.com/pervognsen
-
     const uint32_t one = 1 << 16;
-    const uint32_t topY = verts[tl]->y;
-    const uint32_t botY = verts[bl]->y;
-    uint32_t oneDx = one / (verts[tr]->x - verts[tl]->x);
+    const uint32_t topY = topLeft.y;
+    const uint32_t botY = bottomLeft.y;
+    uint32_t oneDx = one / (topRight.x - topLeft.x);
     uint32_t oneDy = one / (botY - topY);
-    uint32_t u = verts[tl]->u * one;
-    uint32_t v = verts[tl]->v * one;
-    uint32_t x1 = verts[tl]->x * one;
-    uint32_t x2 = verts[tr]->x * one;
-    uint32_t duDx = (verts[tr]->u - verts[tl]->u) * oneDx;
-    uint32_t dvDx = (verts[tr]->v - verts[tl]->v) * oneDx;
-    uint32_t dx1Dy = (verts[bl]->x - verts[tl]->x) * oneDy;
-    uint32_t dx2Dy = (verts[br]->x - verts[tr]->x) * oneDy;
-    uint32_t duDy = ((verts[bl]->u - verts[tl]->u) * oneDy) + ((duDx * dx1Dy) / one);
-    uint32_t dvDy = ((verts[bl]->v - verts[tl]->v) * oneDy) + ((dvDx * dx1Dy) / one);
+    uint32_t u = topLeft.u * one;
+    uint32_t v = topLeft.v * one;
+    uint32_t x1 = topLeft.x * one;
+    uint32_t x2 = topRight.x * one;
+    uint32_t duDx = (topRight.u - topLeft.u) * oneDx;
+    uint32_t dvDx = (topRight.v - topLeft.v) * oneDx;
+    uint32_t dx1Dy = (bottomLeft.x - topLeft.x) * oneDy;
+    uint32_t dx2Dy = (bottomRight.x - topRight.x) * oneDy;
+    uint32_t duDy = ((bottomLeft.u - topLeft.u) * oneDy) + ((duDx * dx1Dy) / one);
+    uint32_t dvDy = ((bottomLeft.v - topLeft.v) * oneDy) + ((dvDx * dx1Dy) / one);
     line_t line;
 
     for (uint32_t y = topY; y < botY; y++)
     {
-        line.x1 = (float)x1 / (float)one;
-        line.x2 = (float)x2 / (float)one;
+        uint32_t u2 = u + (duDx * ((x2 - x1) / one));
+        uint32_t v2 = v + (dvDx * ((x2 - x1) / one));
+
+        line.x1 = x1 / one;
+        line.x2 = x2 / one;
         line.y = y;
-        line.u1 = (float)u / (float)one;
-        line.u2 = (float)u / (float)one;
-        line.v1 = (float)v / (float)one;
-        line.v2 = (float)v / (float)one;
+
+        line.u1 = (float)u / one;
+        line.u2 = (float)u2 / one;
+
+        line.v1 = (float)v / one;
+        line.v2 = (float)v2 / one;
+
         line.c1 = trap->c;
         line.c2 = trap->c;
         renderLine(renderData, &line);
@@ -870,19 +852,21 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
                     vertIdx[2] = idxBuffer[i+2];
 
                     bool isQuad = false;
+                    bool oneShared = false;
                     uint8_t shared1 = 4;
                     uint8_t shared2 = 4;
                     if (i < pcmd->ElemCount - 3) // test if quad
                     {
                         for (uint8_t v1 = 0; v1 < 3; v1++)
                         {
-                            for (uint8_t v2 = v1+3; v2 < 6; v2++)
+                            for (uint8_t v2 = 3; v2 < 6; v2++)
                             {
                                 if (idxBuffer[i+v1] == idxBuffer[i+v2])
                                 {
-                                    if (shared1 == 4)
+                                    if (!oneShared)
                                     {
                                         shared1 = idxBuffer[i+v1];
+                                        oneShared = true;
                                     }
                                     else
                                     {
@@ -894,11 +878,11 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
                             }
                             if (isQuad) 
                             {
-                                for (uint8_t v2 = i+3; v2 < i+6; v2++)
+                                for (uint8_t v2 = 3; v2 < 6; v2++)
                                 {
-                                    if (idxBuffer[v2] != shared1 && idxBuffer[v2] != shared2)
+                                    if (idxBuffer[i+v2] != shared1 && idxBuffer[i+v2] != shared2)
                                     {
-                                        vertIdx[3] = idxBuffer[v2];
+                                        vertIdx[3] = idxBuffer[i+v2];
                                         break;
                                     }
                                 }
@@ -910,13 +894,48 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
                     if (isQuad)
                     {
                         const ImDrawVert* verts[4] = {
-                            &vtxBuffer[vertIdx[0]],
-                            &vtxBuffer[vertIdx[1]],
-                            &vtxBuffer[vertIdx[2]],
-                            &vtxBuffer[vertIdx[3]]
+                            &(vtxBuffer[vertIdx[0]]),
+                            &(vtxBuffer[vertIdx[1]]),
+                            &(vtxBuffer[vertIdx[2]]),
+                            &(vtxBuffer[vertIdx[3]])
                         };
 
-                        if (verts[0]->col == verts[4]->col) //Make sure both tris are the same color
+                        const uint8_t tl = 0, tr = 1, br = 2, bl = 3;
+                        // vert_t* verts[4] = {
+                        //     &trap->v1,  //top left
+                        //     &trap->v2,  //top right
+                        //     &trap->v3,  //bottom right
+                        //     &trap->v4   //bottom left
+                        // };
+
+                        for (uint8_t i = 0; i < 4; i++)
+                        {
+                            for (uint8_t j = i; j < 4; j++)
+                            {
+                                if (verts[i]->pos.y > verts[j]->pos.y)
+                                {
+                                    const ImDrawVert* v = verts[i];
+                                    verts[i] = verts[j];
+                                    verts[j] = v;
+                                }
+                            }
+                        }
+
+                        if (verts[tl]->pos.x > verts[tr]->pos.x)
+                        {
+                            const ImDrawVert* v = verts[tr];
+                            verts[tr] = verts[tl];
+                            verts[tl] = v;
+                        }
+
+                        if (verts[bl]->pos.x > verts[br]->pos.x)
+                        {
+                            const ImDrawVert* v = verts[br];
+                            verts[br] = verts[bl];
+                            verts[bl] = v;
+                        }
+                        
+                        if ((verts[0]->col == verts[3]->col)) //Make sure both tris are the same color
                         {
                             trapezoid_t trap;
                             trap.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
@@ -924,25 +943,50 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
                             trap.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
                             trap.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
 
-                            trap.v1.x = (verts[0]->pos.x + 0.5f);
-                            trap.v1.y = (verts[0]->pos.y + 0.5f);
-                            trap.v1.u = verts[0]->uv.x;
-                            trap.v1.v = verts[0]->uv.y;
+                            float maxX = verts[tr]->pos.x > verts[br]->pos.x ? 
+                                verts[tr]->pos.x : verts[br]->pos.x;
 
-                            trap.v2.x = (verts[1]->pos.x + 0.5f);
-                            trap.v2.y = (verts[1]->pos.y + 0.5f);
-                            trap.v2.u = verts[1]->uv.x;
-                            trap.v2.v = verts[1]->uv.y;
+                            float minX = verts[tl]->pos.x < verts[bl]->pos.x ? 
+                                verts[tl]->pos.x : verts[bl]->pos.x;
 
-                            trap.v3.x = (verts[2]->pos.x + 0.5f);
-                            trap.v3.y = (verts[2]->pos.y + 0.5f);
-                            trap.v3.u = verts[2]->uv.x;
-                            trap.v3.v = verts[2]->uv.y;
+                            float maxY = verts[bl]->pos.y > verts[br]->pos.y ? 
+                                verts[bl]->pos.y : verts[br]->pos.y;
 
-                            trap.v4.x = (verts[3]->pos.x + 0.5f);
-                            trap.v4.y = (verts[3]->pos.y + 0.5f);
-                            trap.v4.u = verts[3]->uv.x;
-                            trap.v4.v = verts[3]->uv.y;
+                            float minY = verts[tl]->pos.y < verts[tr]->pos.y ? 
+                                verts[tl]->pos.y : verts[tr]->pos.y;
+
+
+                            float maxU = verts[tr]->uv.x > verts[br]->uv.x ? 
+                                verts[tr]->uv.x : verts[br]->uv.x;
+
+                            float minU = verts[tl]->uv.x < verts[bl]->uv.x ? 
+                                verts[tl]->uv.x : verts[bl]->uv.x;
+
+                            float maxV = verts[bl]->uv.y > verts[br]->uv.y ? 
+                                verts[bl]->uv.y : verts[br]->uv.y;
+
+                            float minV = verts[tl]->uv.y < verts[tr]->uv.y ? 
+                                verts[tl]->uv.y : verts[tr]->uv.y;
+
+                            trap.v1.x = minX;
+                            trap.v1.y = minY;
+                            trap.v1.u = minU;// * (1<<16);
+                            trap.v1.v = minV;// * (1<<16);
+
+                            trap.v2.x = maxX;
+                            trap.v2.y = minY;
+                            trap.v2.u = maxU;// * (1<<16);
+                            trap.v2.v = minV;// * (1<<16);
+
+                            trap.v3.x = maxX;
+                            trap.v3.y = maxY;
+                            trap.v3.u = maxU;// * (1<<16);
+                            trap.v3.v = maxV;// * (1<<16);
+
+                            trap.v4.x = minX;
+                            trap.v4.y = maxY;
+                            trap.v4.u = minU;// * (1<<16);
+                            trap.v4.v = maxV;// * (1<<16);
 
                             renderTrapezoid(&renderData, &trap);
                             i += 3;
