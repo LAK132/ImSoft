@@ -17,6 +17,21 @@
 // If you are new to ImGui, see examples/README.txt and documentation at the top of imgui.cpp.
 // https://github.com/ocornut/imgui
 
+// CHANGELOG
+// (minor and older changes stripped away, please see git history for details)
+//  2018-02-16: Misc: Obsoleted the io.RenderDrawListsFn callback and exposed ImGui_ImplGlfwGL2_RenderDrawData() in the .h file so you can call it yourself.
+//  2018-02-06: Misc: Removed call to ImGui::Shutdown() which is not available from 1.60 WIP, user needs to call CreateContext/DestroyContext themselves.
+//  2018-02-06: Inputs: Added mapping for ImGuiKey_Space.
+//  2018-01-25: Inputs: Honoring the io.WantMoveMouse by repositioning the mouse by using navigation and ImGuiNavFlags_MoveMouse is set.
+//  2018-01-20: Inputs: Added Horizontal Mouse Wheel support.
+//  2018-01-18: Inputs: Added mapping for ImGuiKey_Insert.
+//  2018-01-09: Misc: Renamed imgui_impl_glfw.* to imgui_impl_glfw_gl2.*.
+//  2017-09-01: OpenGL: Save and restore current polygon mode.
+//  2017-08-25: Inputs: MousePos set to -FLT_MAX,-FLT_MAX when mouse is unavailable/missing (instead of -1,-1).
+//  2016-10-15: Misc: Added a void* user_data parameter to Clipboard function handlers.
+//  2016-09-10: OpenGL: Uploading font texture as RGBA32 to increase compatibility with users shaders (not ideal).
+//  2016-09-05: OpenGL: Fixed save and restore of current scissor rectangle.
+
 #include "imgui.h"
 #include "imgui_impl_glfw_gl2.h"
 
@@ -35,10 +50,10 @@ static double       g_Time = 0.0f;
 static bool         g_MouseJustPressed[3] = { false, false, false };
 static GLuint       g_FontTexture = 0;
 
-// This is the main rendering function that you have to implement and provide to ImGui (via setting up 'RenderDrawListsFn' in the ImGuiIO structure)
-void ImGui_ImplGlfwGL2_RenderDrawLists(ImDrawData* draw_data)
+// OpenGL2 Render function.
+// (this used to be set in io.RenderDrawListsFn and called by ImGui::Render(), but you can now call this directly from your main loop)
 // Note that this implementation is little overcomplicated because we are saving/setting up/restoring every OpenGL state explicitly, in order to be able to run within any OpenGL engine that doesn't do so. 
-// If text or lines are blurry when integrating ImGui in your engine: in your Render function, try translating your projection matrix by (0.5f,0.5f) or (0.375f,0.375f)
+void ImGui_ImplGlfwGL2_RenderDrawData(ImDrawData* draw_data)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
@@ -179,6 +194,7 @@ bool ImGui_ImplGlfwGL2_CreateDeviceObjects()
     glBindTexture(GL_TEXTURE_2D, g_FontTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     // Store our identifier
@@ -227,7 +243,6 @@ bool    ImGui_ImplGlfwGL2_Init(GLFWwindow* window, bool install_callbacks)
     io.KeyMap[ImGuiKey_Y] = GLFW_KEY_Y;
     io.KeyMap[ImGuiKey_Z] = GLFW_KEY_Z;
 
-    io.RenderDrawListsFn = ImGui_ImplGlfwGL2_RenderDrawLists;      // Alternatively you can set this to NULL and call ImGui::GetDrawData() after ImGui::Render() to get the same ImDrawData pointer.
     io.SetClipboardTextFn = ImGui_ImplGlfwGL2_SetClipboardText;
     io.GetClipboardTextFn = ImGui_ImplGlfwGL2_GetClipboardText;
     io.ClipboardUserData = g_Window;

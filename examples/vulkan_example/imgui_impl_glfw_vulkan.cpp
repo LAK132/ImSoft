@@ -8,6 +8,20 @@
 // If you are new to ImGui, see examples/README.txt and documentation at the top of imgui.cpp.
 // https://github.com/ocornut/imgui
 
+// CHANGELOG
+// (minor and older changes stripped away, please see git history for details)
+//  2018-02-16: Misc: Obsoleted the io.RenderDrawListsFn callback, ImGui_ImplGlfwVulkan_Render() calls ImGui_ImplGlfwVulkan_RenderDrawData() itself.
+//  2018-02-06: Misc: Removed call to ImGui::Shutdown() which is not available from 1.60 WIP, user needs to call CreateContext/DestroyContext themselves.
+//  2018-02-06: Inputs: Added mapping for ImGuiKey_Space.
+//  2018-01-20: Inputs: Added Horizontal Mouse Wheel support.
+//  2018-01-18: Inputs: Added mapping for ImGuiKey_Insert.
+//  2017-08-25: Inputs: MousePos set to -FLT_MAX,-FLT_MAX when mouse is unavailable/missing (instead of -1,-1).
+//  2017-05-15: Vulkan: Fix scissor offset being negative. Fix new Vulkan validation warnings. Set required depth member for buffer image copy.
+//  2016-11-13: Vulkan: Fix validation layer warnings and errors and redeclare gl_PerVertex.
+//  2016-10-18: Vulkan: Add location decorators & change to use structs as in/out in glsl, update embedded spv (produced with glslangValidator -x). Null the released resources.
+//  2016-10-15: Misc: Added a void* user_data parameter to Clipboard function handlers.
+//  2016-08-27: Vulkan: Fix Vulkan example for use when a depth buffer is active.
+
 #include "imgui.h"
 #include "imgui_impl_glfw_vulkan.h"
 
@@ -152,10 +166,12 @@ static void ImGui_ImplGlfwVulkan_VkResult(VkResult err)
 }
 
 // This is the main rendering function that you have to implement and provide to ImGui (via setting up 'RenderDrawListsFn' in the ImGuiIO structure)
-void ImGui_ImplGlfwVulkan_RenderDrawLists(ImDrawData* draw_data)
+void ImGui_ImplGlfwVulkan_RenderDrawData(ImDrawData* draw_data)
 {
     VkResult err;
     ImGuiIO& io = ImGui::GetIO();
+    if (draw_data->TotalVtxCount == 0)
+        return;
 
     // Create the Vertex Buffer:
     size_t vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
@@ -765,7 +781,6 @@ bool    ImGui_ImplGlfwVulkan_Init(GLFWwindow* window, bool install_callbacks, Im
     io.KeyMap[ImGuiKey_Y] = GLFW_KEY_Y;
     io.KeyMap[ImGuiKey_Z] = GLFW_KEY_Z;
 
-    io.RenderDrawListsFn = ImGui_ImplGlfwVulkan_RenderDrawLists;       // Alternatively you can set this to NULL and call ImGui::GetDrawData() after ImGui::Render() to get the same ImDrawData pointer.
     io.SetClipboardTextFn = ImGui_ImplGlfwVulkan_SetClipboardText;
     io.GetClipboardTextFn = ImGui_ImplGlfwVulkan_GetClipboardText;
     io.ClipboardUserData = g_Window;
@@ -838,6 +853,7 @@ void ImGui_ImplGlfwVulkan_Render(VkCommandBuffer command_buffer)
 {
     g_CommandBuffer = command_buffer;
     ImGui::Render();
+    ImGui_ImplGlfwVulkan_RenderDrawData(ImGui::GetDrawData());
     g_CommandBuffer = VK_NULL_HANDLE;
     g_FrameIndex = (g_FrameIndex + 1) % IMGUI_VK_QUEUED_FRAMES;
 }
