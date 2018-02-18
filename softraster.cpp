@@ -274,7 +274,6 @@ void Softraster::renderPixel(renderData_t* renderData, pixel_t* pixel)
 
 void Softraster::renderLine(renderData_t* renderData, line_t* line)
 {
-
     //Discard line if it is outside the frame buffer    
     if ((line->x2 < 0) || 
         (line->y < 0) ||
@@ -722,6 +721,118 @@ void Softraster::renderRectangle(renderData_t* renderData, rectangle_t* rect)
     }
 }
 
+void Softraster::renderTrapezoid(renderData_t* renderData, trapezoid_t* trap)
+{   
+    const uint8_t tl = 0, tr = 1, br = 2, bl = 3;
+    vert_t* verts[4] = {
+        &trap->v1,  //top left
+        &trap->v2,  //top right
+        &trap->v3,  //bottom right
+        &trap->v4   //bottom left
+    };
+
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        for (uint8_t j = i; j < 4; j++)
+        {
+            if (verts[i]->y > verts[j]->y)
+            {
+                vert_t* v = verts[i];
+                verts[i] = verts[j];
+                verts[j] = v;
+            }
+        }
+    }
+
+    if (verts[tl]->x > verts[tr]->x)
+    {
+        vert_t* v = verts[tr];
+        verts[tr] = verts[tl];
+        verts[tl] = v;
+    }
+
+    if (verts[bl]->x > verts[br]->x)
+    {
+        vert_t* v = verts[br];
+        verts[br] = verts[bl];
+        verts[bl] = v;
+    }
+
+    if (verts[tl]->y != verts[tr]->y || verts[bl]->y != verts[br]->y)
+    {
+        return;
+    }
+
+    // No float trapezoid renderer by pervorgnsen https://gist.github.com/pervognsen
+
+    const uint32_t one = 1 << 16;
+    const uint32_t topY = verts[tl]->y;
+    const uint32_t botY = verts[bl]->y;
+    uint32_t oneDx = one / (verts[tr]->x - verts[tl]->x);
+    uint32_t oneDy = one / (botY - topY);
+    uint32_t u = verts[tl]->u * one;
+    uint32_t v = verts[tl]->v * one;
+    uint32_t x1 = verts[tl]->x * one;
+    uint32_t x2 = verts[tr]->x * one;
+    uint32_t duDx = (verts[tr]->u - verts[tl]->u) * oneDx;
+    uint32_t dvDx = (verts[tr]->v - verts[tl]->v) * oneDx;
+    uint32_t dx1Dy = (verts[bl]->x - verts[tl]->x) * oneDy;
+    uint32_t dx2Dy = (verts[br]->x - verts[tr]->x) * oneDy;
+    uint32_t duDy = ((verts[bl]->u - verts[tl]->u) * oneDy) + ((duDx * dx1Dy) / one);
+    uint32_t dvDy = ((verts[bl]->v - verts[tl]->v) * oneDy) + ((dvDx * dx1Dy) / one);
+    line_t line;
+
+    for (uint32_t y = topY; y < botY; y++)
+    {
+        line.x1 = (float)x1 / (float)one;
+        line.x2 = (float)x2 / (float)one;
+        line.y = y;
+        line.u1 = (float)u / (float)one;
+        line.u2 = (float)u / (float)one;
+        line.v1 = (float)v / (float)one;
+        line.v2 = (float)v / (float)one;
+        line.c1 = trap->c;
+        line.c2 = trap->c;
+        renderLine(renderData, &line);
+
+        u += duDy;
+        v += dvDy;
+        x1 += dx1Dy;
+        x2 += dx2Dy;
+    }
+
+    // if ((rect->x2 < 0) || 
+    //     (rect->y2 < 0) ||
+    //     (rect->x1 >= renderData->screen->w) || 
+    //     (rect->y1 >= renderData->screen->h))
+    //     return;
+
+    // if ((rect->x2 < renderData->clipRect.x) ||
+    //     (rect->y2 < renderData->clipRect.y) ||
+    //     (rect->x1 >= renderData->clipRect.z) || 
+    //     (rect->y1 >= renderData->clipRect.w))
+    //     return;
+                    
+    // for (float y = rect->y1; y < rect->y2; y++)
+    // {
+    //     line_t l;
+    //     l.x1 = rect->x1;
+    //     l.x2 = rect->x2;
+    //     l.y = y;
+    //     l.c1 = rect->c;
+    //     l.c2 = rect->c;
+    //     l.u1 = rect->u1;
+    //     l.u2 = rect->u2;
+
+    //     float f = (y - rect->y1) / (rect->y2 - rect->y1);
+
+    //     l.v1 = lerp(rect->v1, rect->v2, f);
+    //     l.v2 = l.v1;
+        
+    //     renderLine(renderData, &l);
+    // }
+}
+
 void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -734,8 +845,8 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
     for (int n = 0; n < drawData->CmdListsCount; n++)
     {
         const ImDrawList* cmdList = drawData->CmdLists[n];
-        const ImDrawVert* vtx_buffer = cmdList->VtxBuffer.Data;
-        const ImDrawIdx* idx_buffer = cmdList->IdxBuffer.Data;
+        const ImDrawVert* vtxBuffer = cmdList->VtxBuffer.Data;
+        const ImDrawIdx* idxBuffer = cmdList->IdxBuffer.Data;
 
         for (int cmdi = 0; cmdi < cmdList->CmdBuffer.Size; cmdi++)
         {
@@ -753,83 +864,97 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
 
                 for(unsigned int i = 0; i < pcmd->ElemCount; i += 3)
                 {
-                    const ImDrawVert* verts[] =
+                    uint16_t vertIdx[4];
+                    vertIdx[0] = idxBuffer[i];
+                    vertIdx[1] = idxBuffer[i+1];
+                    vertIdx[2] = idxBuffer[i+2];
+
+                    bool isQuad = false;
+                    uint8_t shared1 = 4;
+                    uint8_t shared2 = 4;
+                    if (i < pcmd->ElemCount - 3) // test if quad
                     {
-                        &vtx_buffer[idx_buffer[i]],
-                        &vtx_buffer[idx_buffer[i+1]],
-                        &vtx_buffer[idx_buffer[i+2]]
-                    };
-
-                    if (i < pcmd->ElemCount - 3)
-                    {
-                        ImVec2 tlpos = verts[0]->pos;
-                        ImVec2 brpos = verts[0]->pos;
-                        ImVec2 tluv = verts[0]->uv;
-                        ImVec2 bruv = verts[0]->uv;
-                        for (int v = 1; v < 3; v++)
+                        for (uint8_t v1 = 0; v1 < 3; v1++)
                         {
-                            if (verts[v]->pos.x < tlpos.x)
+                            for (uint8_t v2 = v1+3; v2 < 6; v2++)
                             {
-                                tlpos.x = verts[v]->pos.x;
-                                tluv.x = verts[v]->uv.x;
+                                if (idxBuffer[i+v1] == idxBuffer[i+v2])
+                                {
+                                    if (shared1 == 4)
+                                    {
+                                        shared1 = idxBuffer[i+v1];
+                                    }
+                                    else
+                                    {
+                                        shared2 = idxBuffer[i+v1];
+                                        isQuad = true;
+                                        break;
+                                    }
+                                }
                             }
-                            else if (verts[v]->pos.x > brpos.x)
+                            if (isQuad) 
                             {
-                                brpos.x = verts[v]->pos.x;
-                                bruv.x = verts[v]->uv.x;
-                            }
-                            if (verts[v]->pos.y < tlpos.y)
-                            {
-                                tlpos.y = verts[v]->pos.y;
-                                tluv.y = verts[v]->uv.y;
-                            }
-                            else if (verts[v]->pos.y > brpos.y)
-                            {
-                                brpos.y = verts[v]->pos.y;
-                                bruv.y = verts[v]->uv.y;
-                            }
-                        }
-
-                        const ImDrawVert* nextVerts[] =
-                        {
-                            &vtx_buffer[idx_buffer[i+3]],
-                            &vtx_buffer[idx_buffer[i+4]],
-                            &vtx_buffer[idx_buffer[i+5]]
-                        };
-
-                        bool isRect = true;
-                        for (int v = 0; v < 3; v++)
-                        {
-                            if (((nextVerts[v]->pos.x != tlpos.x) && (nextVerts[v]->pos.x != brpos.x)) ||
-                                ((nextVerts[v]->pos.y != tlpos.y) && (nextVerts[v]->pos.y != brpos.y)) ||
-                                ((nextVerts[v]->uv.x != tluv.x) && (nextVerts[v]->uv.x != bruv.x)) ||
-                                ((nextVerts[v]->uv.y != tluv.y) && (nextVerts[v]->uv.y != bruv.y)))
-                            {
-                                isRect = false;
+                                for (uint8_t v2 = i+3; v2 < i+6; v2++)
+                                {
+                                    if (idxBuffer[v2] != shared1 && idxBuffer[v2] != shared2)
+                                    {
+                                        vertIdx[3] = idxBuffer[v2];
+                                        break;
+                                    }
+                                }
                                 break;
                             }
                         }
+                    }
 
-                        if (isRect)
+                    if (isQuad)
+                    {
+                        const ImDrawVert* verts[4] = {
+                            &vtxBuffer[vertIdx[0]],
+                            &vtxBuffer[vertIdx[1]],
+                            &vtxBuffer[vertIdx[2]],
+                            &vtxBuffer[vertIdx[3]]
+                        };
+
+                        if (verts[0]->col == verts[4]->col) //Make sure both tris are the same color
                         {
-                            rectangle_t rect;
-                            rect.x1 = tlpos.x;
-                            rect.y1 = tlpos.y;
-                            rect.x2 = brpos.x;
-                            rect.y2 = brpos.y;
-                            rect.u1 = tluv.x;
-                            rect.v1 = tluv.y;
-                            rect.u2 = bruv.x;
-                            rect.v2 = bruv.y;
-                            rect.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
-                            rect.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
-                            rect.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
-                            rect.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
-                            renderRectangle(&renderData, &rect);
+                            trapezoid_t trap;
+                            trap.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
+                            trap.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
+                            trap.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
+                            trap.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
+
+                            trap.v1.x = (verts[0]->pos.x + 0.5f);
+                            trap.v1.y = (verts[0]->pos.y + 0.5f);
+                            trap.v1.u = verts[0]->uv.x;
+                            trap.v1.v = verts[0]->uv.y;
+
+                            trap.v2.x = (verts[1]->pos.x + 0.5f);
+                            trap.v2.y = (verts[1]->pos.y + 0.5f);
+                            trap.v2.u = verts[1]->uv.x;
+                            trap.v2.v = verts[1]->uv.y;
+
+                            trap.v3.x = (verts[2]->pos.x + 0.5f);
+                            trap.v3.y = (verts[2]->pos.y + 0.5f);
+                            trap.v3.u = verts[2]->uv.x;
+                            trap.v3.v = verts[2]->uv.y;
+
+                            trap.v4.x = (verts[3]->pos.x + 0.5f);
+                            trap.v4.y = (verts[3]->pos.y + 0.5f);
+                            trap.v4.u = verts[3]->uv.x;
+                            trap.v4.v = verts[3]->uv.y;
+
+                            renderTrapezoid(&renderData, &trap);
                             i += 3;
                             continue;
                         }
                     }
+
+                    const ImDrawVert* verts[3] = {
+                        &vtxBuffer[vertIdx[0]],
+                        &vtxBuffer[vertIdx[1]],
+                        &vtxBuffer[vertIdx[2]]
+                    };
 
                     triangle_t tri;
                     tri.x1 = verts[0]->pos.x;
@@ -857,9 +982,73 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t* screen)
                     tri.c3.b = (verts[2]->col >> IM_COL32_B_SHIFT) & 0xFF;
                     tri.c3.a = (verts[2]->col >> IM_COL32_A_SHIFT) & 0xFF;
                     renderTriangle(&renderData, &tri);
+
+                    // const ImDrawVert* verts[] =
+                    // {
+                    //     &vtxBuffer[idxBuffer[i]],
+                    //     &vtxBuffer[idxBuffer[i+1]],
+                    //     &vtxBuffer[idxBuffer[i+2]]
+                    // };
+
+                    // if (i < pcmd->ElemCount - 3)
+                    // {
+                    //     ImVec2 tlpos = verts[0]->pos;
+                    //     ImVec2 brpos = verts[0]->pos;
+                    //     ImVec2 tluv = verts[0]->uv;
+                    //     ImVec2 bruv = verts[0]->uv;
+                    //     for (int v = 1; v < 3; v++)
+                    //     {
+                    //         if (verts[v]->pos.x < tlpos.x)
+                    //         {
+                    //             tlpos.x = verts[v]->pos.x;
+                    //             tluv.x = verts[v]->uv.x;
+                    //         }
+                    //         else if (verts[v]->pos.x > brpos.x)
+                    //         {
+                    //             brpos.x = verts[v]->pos.x;
+                    //             bruv.x = verts[v]->uv.x;
+                    //         }
+                    //         if (verts[v]->pos.y < tlpos.y)
+                    //         {
+                    //             tlpos.y = verts[v]->pos.y;
+                    //             tluv.y = verts[v]->uv.y;
+                    //         }
+                    //         else if (verts[v]->pos.y > brpos.y)
+                    //         {
+                    //             brpos.y = verts[v]->pos.y;
+                    //             bruv.y = verts[v]->uv.y;
+                    //         }
+                    //     }
+
+                    //     const ImDrawVert* nextVerts[] =
+                    //     {
+                    //         &vtxBuffer[idxBuffer[i+3]],
+                    //         &vtxBuffer[idxBuffer[i+4]],
+                    //         &vtxBuffer[idxBuffer[i+5]]
+                    //     };
+
+                    //     bool isRect = true;
+                    //     for (int v = 0; v < 3; v++)
+                    //     {
+                    //         if (((nextVerts[v]->pos.x != tlpos.x) && (nextVerts[v]->pos.x != brpos.x)) ||
+                    //             ((nextVerts[v]->pos.y != tlpos.y) && (nextVerts[v]->pos.y != brpos.y)) ||
+                    //             ((nextVerts[v]->uv.x != tluv.x) && (nextVerts[v]->uv.x != bruv.x)) ||
+                    //             ((nextVerts[v]->uv.y != tluv.y) && (nextVerts[v]->uv.y != bruv.y)))
+                    //         {
+                    //             isRect = false;
+                    //             break;
+                    //         }
+                    //     }
+
+                    //     if (isRect)
+                    //     {
+                    //         i += 3;
+                    //         continue;
+                    //     }
+                    //  }
                 }
             }
-            idx_buffer += pcmd->ElemCount;
+            idxBuffer += pcmd->ElemCount;
         }
     }
 }

@@ -432,6 +432,18 @@ struct rectangle_t
     float v2;
 };
 
+struct vert_t
+{
+    uint32_t x, y;
+    float u, v;
+};
+
+struct trapezoid_t
+{
+    vert_t v1, v2, v3, v4;
+    color32_t c; //ImGui only outputs single color objects
+};
+
 class Softraster
 {
 public:
@@ -442,6 +454,7 @@ public:
     static void renderTriangleFT(renderData_t* renderData, triangle_t* tri);
     static void renderTriangle(renderData_t* renderData, triangle_t* tri);
     static void renderRectangle(renderData_t* renderData, rectangle_t* rect);
+    static void renderTrapezoid(renderData_t* renderData, trapezoid_t* trap);
     static void renderDrawLists(ImDrawData* drawData, screen_t* screen);
 };
 

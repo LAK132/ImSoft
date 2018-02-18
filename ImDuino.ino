@@ -132,8 +132,6 @@ void setup()
 
   screenBuffer.init(TFTX, TFTY, COLOR16);
 
-  Serial.println("wooT");
-
   screen.w = TFTX;
   screen.h = TFTY;
   screen.buffer = &screenBuffer;
