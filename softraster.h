@@ -358,9 +358,15 @@ struct texture_t
 
 extern texture_t fontAtlas;
 
+struct clip_t
+{
+    int16_t x1, y1, x2, y2;
+};
+
 struct screen_t
 {
     texture_t* buffer;
+    clip_t* clip;
     size_t w;
     size_t h;
 };

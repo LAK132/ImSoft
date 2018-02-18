@@ -1,6 +1,8 @@
 #include "softraster.h"
 #include "imgui.h"
-//#define ESP32
+
+#define ESP32
+
 #include "SPI.h"
 #include <TFT_22_ILI9225.h>
 
@@ -21,13 +23,38 @@ const uint8_t TFTSDI = HSPIMOSI;
 #define TFTY 176
 
 texture_t screenBuffer;
+clip_t screenClip;
+screen_t screen;
 
 TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTSDI, TFTCLK, TFTLED, 128);
 //SPIClass tftspi(HSPI);
 
 void updateScreen()
 {
-  tft.drawBitmap(0, 0, screenBuffer.tex16.col, screenBuffer.tex16.w, screenBuffer.tex16.h);
+  int16_t& x1 = screenClip.x1;
+  int16_t& y1 = screenClip.y1;
+  int16_t& x2 = screenClip.x2;
+  int16_t& y2 = screenClip.y2;
+
+  if (x1 == -1 || y1 == -1 || x2 == -1 || y2 == -1) return;
+
+  tft.startWrite(x1, y1, x2, y2);
+  for (int16_t x = x2; x >= x1; x--) //uint16_t x causes undeflow
+  {
+    for (int16_t y = y1; y <= y2; y++) 
+    {
+      uint16_t& col = screenBuffer.tex16.col[x][y];
+      tft._spiWrite(col>>8);
+      tft._spiWrite(col);
+    }
+  }
+  tft.endWrite();
+
+  x1 = -1;
+  y1 = -1;
+  x2 = -1;
+  y2 = -1;
+  //tft.drawBitmap(0, 0, screenBuffer.tex16.col, screenBuffer.tex16.w, screenBuffer.tex16.h);
 }
 
 unsigned long drawTime;
@@ -35,11 +62,6 @@ unsigned long rasterTime;
 
 void renderFunc(ImDrawData* drawData)
 {
-  screen_t screen;
-  screen.w = TFTX;
-  screen.h = TFTY;
-  screen.buffer = &screenBuffer;
-
   rasterTime = millis();
   Softraster::renderDrawLists(drawData, &screen);
   rasterTime = millis() - rasterTime;
@@ -62,10 +84,15 @@ void setup()
   digitalWrite(TFTLED, HIGH);
     
   ImGui::CreateContext();
+
   ImGuiIO& io = ImGui::GetIO();
   io.DisplaySize.x = TFTX;
   io.DisplaySize.y = TFTY;
   io.RenderDrawListsFn = renderFunc;
+
+  ImGuiStyle& style = ImGui::GetStyle();
+  style.AntiAliasedLines = false;
+  style.AntiAliasedFill = false;
   
   #ifdef SMALL_ATLAS
   io.Fonts->Flags |= ImFontAtlasFlags_NoPowerOfTwoHeight | ImFontAtlasFlags_NoMouseCursors;
@@ -92,17 +119,25 @@ void setup()
   Serial.print("}");
   #endif
 
-  ImGui::MemFree(pixels);
+  io.Fonts->ClearInputData();
+  io.Fonts->ClearTexData();  //ImGui::MemFree(pixels);
 
   fontAtlas.pre_init(COLOR8);
   for(size_t i = 0; i < fontAtlas.tex8.w; i++)
   {
     fontAtlas.ctex8.col[i] = &(fontAtlasPixels[i * fontAtlas.tex8.h]);
   }
-
-  screenBuffer.init(TFTX, TFTY, COLOR16);
   
   io.Fonts->TexID = (void*)&fontAtlas;
+
+  screenBuffer.init(TFTX, TFTY, COLOR16);
+
+  Serial.println("wooT");
+
+  screen.w = TFTX;
+  screen.h = TFTY;
+  screen.buffer = &screenBuffer;
+  screen.clip = &screenClip;
 }
 
 float f = 0.0f;

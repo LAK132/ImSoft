@@ -478,13 +478,7 @@ int main(int arg, char **argv)
    #endif
 
    #ifndef STBTT_memcpy
-<<<<<<< HEAD
-   #ifndef ARDUINO
-   #include <memory.h>
-   #endif
-=======
    #include <string.h>
->>>>>>> upstream/master
    #define STBTT_memcpy       memcpy
    #define STBTT_memset       memset
    #endif

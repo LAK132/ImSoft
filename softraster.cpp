@@ -183,6 +183,26 @@ void Softraster::renderPixel(renderData_t* renderData, pixel_t* pixel)
     sampleTexture(renderData->texture, pixel);
     
     if (pixel->c.a == 0) return; //Pixel won't change color if alpha is 0 so return
+
+    clip_t* clip = renderData->screen->clip;
+
+    if (pixel->x < clip->x1 || clip->x1 < 0)
+    {
+        clip->x1 = pixel->x;
+    }
+    else if (pixel->x > clip->x2 || clip->x2 < 0)
+    {
+        clip->x2 = pixel->x;
+    }
+    
+    if (pixel->y < clip->y1 || clip->y1 < 0)
+    {
+        clip->y1 = pixel->y;
+    }
+    else if (pixel->y > clip->y2 || clip->y2 < 0)
+    {
+        clip->y2 = pixel->y;
+    }
     
     texture_t* buff = renderData->screen->buffer;
     
