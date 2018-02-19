@@ -1,3 +1,4 @@
+#define SCREEN_MODE_8
 #include "softraster.h"
 #include "imgui.h"
 
