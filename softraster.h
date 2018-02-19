@@ -6,11 +6,13 @@
 #include "math.h"
 #include "imgui.h"
 
-#define FIXED_POINT 0x10000
+//#define FIXED_POINT 0x10000
 //#define FIXED_POINT 0xFFFFFFFFFFFFFFFF
 //#define FIXED_POINT 0xFFFFFFFF
-//#define FIXED_POINT 0x100000000
-#define fixed_t int32_t
+//#define FIXED_POINT (1<<18)
+#define FIXED_POINT 1.0f
+//#define fixed_t int32_t
+#define fixed_t float
 
 template<typename T>
 T lerp(T a, T b, uint8_t f) // [0, 255]

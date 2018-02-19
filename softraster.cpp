@@ -136,6 +136,8 @@ void Softraster::sampleTexture(texture_t* tex, pixel_t* pixel)
     #else
         int u = (int)((pixel->u * w) + 0.5f) % w;
         int v = (int)((pixel->v * h) + 0.5f) % h;
+        // int u = (int)((pixel->u * w) / FIXED_POINT) % w;
+        // int v = (int)((pixel->v * h) / FIXED_POINT) % h;
     #endif
         switch(tex->colorMode)
         {
@@ -192,10 +194,10 @@ void Softraster::sampleTexture(texture_t* tex, pixel32_t* pixel)
         if (v < 0) v = 0;
         else if (v > h) v = h - 1;
     #else
-        // int u = (int)((pixel->u * w) + 0.5f) % w;
-        // int v = (int)((pixel->v * h) + 0.5f) % h;
-        fixed_t u = ((pixel->u * w) / FIXED_POINT) % w;
-        fixed_t v = ((pixel->v * h) / FIXED_POINT) % h;
+        int u = (int)((pixel->u * w) + 0.5f) % w;
+        int v = (int)((pixel->v * h) + 0.5f) % h;
+        // fixed_t u = ((pixel->u * w) / FIXED_POINT) % w;
+        // fixed_t v = ((pixel->v * h) / FIXED_POINT) % h;
     #endif
         switch(tex->colorMode)
         {
@@ -834,7 +836,7 @@ void Softraster::renderTrapezoid(renderData_t* renderData, trapezoid_t* trap)
 
     pixel32_t p;
 
-    for (fixed_t y = starty; y < endy; y++)
+    for (int16_t y = starty; y < endy; y++)
     {
         p.y = y;
         p.v = v;
@@ -842,7 +844,7 @@ void Softraster::renderTrapezoid(renderData_t* renderData, trapezoid_t* trap)
         v += dvDy; // iterators must be iterated before any continue statements
         u = u2;
 
-        for (fixed_t x = startx; x < endx; x++)
+        for (int16_t x = startx; x < endx; x++)
         {
             p.x = x;
             p.c = trap->c;

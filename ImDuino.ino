@@ -7,7 +7,7 @@
 #include <TFT_22_ILI9225.h>
 
 //#define PRINT_ATLAS
-#define SMALL_ATLAS
+//#define SMALL_ATLAS
 //#define TEXTURE_MODE_CLAMP
 #include "fontAtlas.h"
 
