@@ -8,6 +8,7 @@
 
 //#define PRINT_ATLAS
 #define SMALL_ATLAS
+//#define TEXTURE_MODE_CLAMP
 #include "fontAtlas.h"
 
 #include "ESP32pinout.h"
@@ -69,6 +70,7 @@ void renderFunc(ImDrawData* drawData)
   drawTime = millis();
   updateScreen();
   drawTime = millis() - drawTime;
+  delay(10);
 }
 
 void setup()
@@ -141,6 +143,9 @@ void setup()
 float f = 0.0f;
 float time = 0.0f;
 
+unsigned long floatTime;
+unsigned long simdTime;
+
 void loop()
 {
   ImGuiIO& io = ImGui::GetIO();
@@ -161,7 +166,38 @@ void loop()
   io.NavInputs[ImGuiNavInput_TweakSlow] = 0.0f;   // slower tweaks                                // e.g. L1 or L2 (PS4), LB or LT (Xbox), L or ZL (Switch)
   io.NavInputs[ImGuiNavInput_TweakFast] = 0.0f;   // faster tweaks                                // e.g. R1 or R2 (PS4), RB or RT (Xbox), R or ZL (Switch)
 
+  uint32_t iterations = 0xFFFFFF;
+
+  float f1, f2, f3, f4;
+  floatTime = micros();
+  for (uint32_t x = 0; x < iterations; x++)
+  {
+    f1 = lerp(1.11111f, (float)x, 0.5f);
+    f2 = lerp(11.11111f, (float)x, 0.5f);
+    f3 = lerp(21.11111f, (float)x, 0.5f);
+    f4 = lerp(31.11111f, (float)x, 0.5f);
+  }
+  floatTime = micros() - floatTime;
+
+  f2 = f1; f4 = f3;
+
+  uint32_t a1;
+
+  simdTime = micros();
+  for (uint32_t x = 0; x < iterations; x++)
+  {
+    a1 = lerp32(0xAAAAAAAA, x, 125);
+  }
+  simdTime = micros() - simdTime;
+
+  Serial.print("Float "); Serial.println(floatTime);
+  Serial.print("uint32 "); Serial.println(simdTime);
+
   ImGui::NewFrame();
+  
+  // ImGui::Text("Float lerp %f ms", floatTime / 1.0f);
+  
+  // ImGui::Text("uint32 lerp %f ms", simdTime / 1.0f);
   
   f += 0.05;
   if(f > 1.0f) f = 0.0f;

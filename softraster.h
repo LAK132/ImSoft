@@ -6,6 +6,12 @@
 #include "math.h"
 #include "imgui.h"
 
+#define FIXED_POINT 0x10000
+//#define FIXED_POINT 0xFFFFFFFFFFFFFFFF
+//#define FIXED_POINT 0xFFFFFFFF
+//#define FIXED_POINT 0x100000000
+#define fixed_t int32_t
+
 template<typename T>
 T lerp(T a, T b, uint8_t f) // [0, 255]
 {
@@ -16,6 +22,16 @@ template<typename T>
 T lerp(T a, T b, float f) // [0.0f, 1.0f]
 {
     return a + (f * (b - a));
+}
+
+static uint32_t lerp32(uint32_t a, uint32_t b, uint32_t t) {
+    enum { MASK = 0x00FF00FF };
+    uint32_t a_even = a & MASK, a_odd = (a >> 8) & MASK;
+    uint32_t b_even = b & MASK, b_odd = (b >> 8) & MASK;
+    uint32_t s = 256 - t;
+    uint32_t c_even = ((s*a_even + t*b_even) >> 8) & MASK;
+    uint32_t c_odd = ((s*a_odd + t*b_odd) >> 8) & MASK;
+    return c_even | (c_odd << 8);
 }
 
 typedef uint8_t color8_t; //256 color
@@ -45,105 +61,26 @@ struct color32_t { //16M color (true color) + 256 alpha
     bool operator!=(const color32_t& rhs) const { return !(*this == rhs); }
 };
 
-#define COLOR8 sizeof(color8_t)
-#define COLOR16 sizeof(color16_t)
-#define COLOR24 sizeof(color24_t)
-#define COLOR32 sizeof(color32_t)
+#define COLOR8 8//sizeof(color8_t)
+#define COLOR16 16//sizeof(color16_t)
+#define COLOR24 24//sizeof(color24_t)
+#define COLOR32 32//sizeof(color32_t)
 
-color16_t   col8to16    (const color8_t& c);
-color24_t   col8to24    (const color8_t& c);
-color32_t   col8to32    (const color8_t& c);
-color32_t   alp8to32    (const color8_t& c);
-color8_t    col16to8    (const color16_t& c);
-color24_t   col16to24   (const color16_t& c);
-color32_t   col16to32   (const color16_t& c);
-color8_t    col24to8    (const color24_t& c);
-color16_t   col24to16   (const color24_t& c);
-color32_t   col24to32   (const color24_t& c);
-color8_t    col32to8    (const color32_t& c);
-color16_t   col32to16   (const color32_t& c);
-color24_t   col32to24   (const color32_t& c);
+color8_t    colto8    (const color16_t& c);
+color8_t    colto8    (const color24_t& c);
+color8_t    colto8    (const color32_t& c);
 
-template<typename COL1, typename COL2>
-void convertColor(COL1& c1, COL2& c2)
-{
-    switch(c1->colorMode)
-    {
-        case COLOR8:
-            switch(c2->colorMode)
-            {
-                case COLOR8:
-                    c2 = c1;
-                    break;
-                case COLOR16:
-                    c2 = col8to16(c1);
-                    break;
-                case COLOR24:
-                    c2 = col8to24(c1);
-                    break;
-                case COLOR32:
-                    c2 = col8to32(c1);
-                    break;
-                default: return;
-            }
-            break;
-        case COLOR16:
-            switch(c2->colorMode)
-            {
-                case COLOR8:
-                    c2 = col16to8(c1);
-                    break;
-                case COLOR16:
-                    c2 = c1;
-                    break;
-                case COLOR24:
-                    c2 = col16to24(c1);
-                    break;
-                case COLOR32:
-                    c2 = col16to32(c1);
-                    break;
-                default: return;
-            }
-            break;
-        case COLOR24:
-            switch(c2->colorMode)
-            {
-                case COLOR8:
-                    c2 = col24to8(c1);
-                    break;
-                case COLOR16:
-                    c2 = col24to16(c1);
-                    break;
-                case COLOR24:
-                    c2 = c1;
-                    break;
-                case COLOR32:
-                    c2 = col24to32(c1);
-                    break;
-                default: return;
-            }
-            break;
-        case COLOR32:
-            switch(c2->colorMode)
-            {
-                case COLOR8:
-                    c2 = col32to8(c1);
-                    break;
-                case COLOR16:
-                    c2 = col32to16(c1);
-                    break;
-                case COLOR24:
-                    c2 = col32to24(c1);
-                    break;
-                case COLOR32:
-                    c2 = c1;
-                    break;
-                default: return;
-            }
-            break;
-        default: return;
-    }
-}
+color16_t   colto16   (const color8_t& c);
+color16_t   colto16   (const color24_t& c);
+color16_t   colto16   (const color32_t& c);
+
+color24_t   colto24   (const color8_t& c);
+color24_t   colto24   (const color16_t& c);
+color24_t   colto24   (const color32_t& c);
+
+color32_t   colto32   (const color8_t& c);
+color32_t   colto32   (const color16_t& c);
+color32_t   colto32   (const color24_t& c);
 
 //Template the texture struct so we can use different color modes/types
 template <typename COL_T>
@@ -387,6 +324,15 @@ struct pixel_t
     float v;
 };
 
+struct pixel32_t
+{
+    fixed_t x;
+    fixed_t y;
+    color32_t c;
+    fixed_t u;
+    fixed_t v;
+};
+
 struct line_t
 {
     float x1;
@@ -440,7 +386,7 @@ struct vert_t
 
 struct trapezoid_t
 {
-    vert_t v1, v2, v3, v4;
+    vert_t v1, v2;
     color32_t c; //ImGui only outputs single color objects
 };
 
@@ -448,6 +394,7 @@ class Softraster
 {
 public:
     static void sampleTexture(texture_t* tex, pixel_t* pixel);
+    static void sampleTexture(texture_t* tex, pixel32_t* pixel);
     static void renderPixel(renderData_t* renderData, pixel_t* pixel);
     static void renderLine(renderData_t* renderData, line_t* line);
     static void renderTriangleFB(renderData_t* renderData, triangle_t* tri);
