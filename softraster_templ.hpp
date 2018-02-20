@@ -487,10 +487,115 @@ void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* ren
     }
 }
 
+template<typename T>
+inline void swapTri(T* tri1, T* tri2)
+{
+    T temp;
+    memcpy(&temp, tri1, sizeof(T));
+    memcpy(tri1, tri2, sizeof(T));
+    memcpy(tri2, &temp, sizeof(T));
+} 
+
 template<typename screenColType>
 void Softraster::renderTri(renderData_t<screenColType, void>* renderData, triangle_t* tri)
 {
+    tri->p1.y = (position_t)(tri->p1.y + 0.5f);
+    tri->p2.y = (position_t)(tri->p2.y + 0.5f);
+    tri->p3.y = (position_t)(tri->p3.y + 0.5f);
 
+    if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
+    if (tri->p1.y > tri->p3.y) swap<pixel_t>(&(tri->p1), &(tri->p3));
+    if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
+
+    const screen_t<screenColType>* screen = renderData->screen;
+    const ImVec4& clipRect = renderData->clipRect;
+
+    const position_t minclipx = (clipRect.x > 0 ? clipRect.x : 0);
+    const position_t minclipy = (clipRect.y > 0 ? clipRect.y : 0);
+
+    const position_t maxclipx = (clipRect.z < screen->w ? clipRect.z : screen->w);
+    const position_t maxclipy = (clipRect.w < screen->h ? clipRect.w : screen->h);
+
+    if ((tri->p3.y < minclipy) ||
+        (tri->p1.y >= maxclipy))
+        return;
+    
+    if (tri->p2.y == tri->p3.y) // Flat bottom triangle
+    {
+        if (tri->p1.y == tri->p2.y) // Flat line
+        {
+
+        }
+        else
+        {
+            if (tri->p2.x > tri->p3.x) swap<pixel_t>(&(tri->p2), &(tri->p3));
+            // Slope version
+            // float x1Inc = (tri->p2.x - tri->p1.x) / (float)(tri->p2.y - tri->p1.y);
+            // float x2Inc = (tri->p3.x - tri->p1.x) / (float)(tri->p3.y - tri->p1.y);
+            // float x1 = tri->p1.x;
+            // float x2 = tri->p1.x;
+            float f = (y - tri->p1.y) / (float)(tri->p2.y - tri->p1.y);
+            // Lerp version
+            position_t startx = lerp(tri->p1.x, tri->p2.x, f);
+            position_t endx =   lerp(tri->p1.x, tri->p3.x, f);
+            for (position_t x = startx; x < endx; x++)
+            {
+                position_t starty = (tri->p1.y > 0 ? tri->p1.y : 0);
+                position_t endy = (tri->p2.y < maxclipy ? tri->p2.y : maxclipy);
+                for (position_t y = starty; y < endy; y++)
+                {
+                    screen->texture[x][y] = convCol<screenColType>(rect->p1.c);
+                }
+            }
+        }
+        return;
+    }
+    else if (tri->p1.y == tri->p2.y) // Flat top triangle
+    {
+        if (tri->p2.x > tri->p3.x) swap<pixel_t>(&(tri->p2), &(tri->p3));
+
+        return;
+    }
+
+    // Find 4th point to split the tri into flat top and flat bottom triangles
+    float f = (tri->p2.y - tri->p1.y) / (tri->p3.y - tri->p1.y);
+
+    pixel_t p4;
+    p4.x = lerp(tri->p1.x, tri->p3.x, f);
+    p4.y = tri->p2.y;
+    p4.c = tri->p1.c;
+
+    if (tri->p2.x > p4.x) swap<pixel_t>(&(tri->p2), &p4);
+
+    triangle_t flat;
+    // Flat bottom
+    flat.p1 = tri->p1;
+    flat.p2 = tri->p2;
+    flat.p3 = p4;
+
+    // Flat top
+    flat.p1 = tri->p2;
+    flat.p2 = p4;
+    flat.p3 = tri->p3;
+
+    const position_t startx = (rect->p1.x > minclipx ? rect->p1.x : minclipx);
+    const position_t starty = (rect->p1.y > minclipy ? rect->p1.y : minclipy);
+
+    const position_t endx = (rect->p2.x < maxclipx ? rect->p2.x : maxclipx);
+    const position_t endy = (rect->p2.y < maxclipy ? rect->p2.y : maxclipy);
+
+    screen->clip->x1 = (startx < screen->clip->x1 ? startx : screen->clip->x1);
+    screen->clip->y1 = (starty < screen->clip->y1 ? starty : screen->clip->y1);
+    screen->clip->x2 = (endx > screen->clip->x2 ? endx-1 : screen->clip->x2);
+    screen->clip->y2 = (endy > screen->clip->y2 ? endy-1 : screen->clip->y2);
+
+    for (position_t x = startx; x < endx; x++)
+    {
+        for (position_t y = starty; y < endy; y++)
+        {
+            
+        }
+    }
 }
 
 template<typename screenColType>

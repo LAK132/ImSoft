@@ -144,6 +144,7 @@ void setup()
 float f = 0.0f;
 float time = 0.0f;
 
+// try while 1 in loop instead of going off the end of the loop (add delay(0))
 void loop()
 {
   ImGuiIO& io = ImGui::GetIO();
