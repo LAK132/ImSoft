@@ -5,7 +5,6 @@
 #include "stdint.h"
 #include "math.h"
 #include "imgui.h"
-#include "softraster_templ.hpp" 
 
 typedef uint8_t color8_t; //256 color
 
@@ -39,11 +38,34 @@ struct color32_t { //16M color (true color) + 256 alpha
 #define COLOR24 sizeof(color24_t)
 #define COLOR32 sizeof(color32_t)
 
-typedef texture_templ_t<color8_t> texture8_t;
-typedef texture_templ_t<const color8_t> ctexture8_t;
-typedef texture_templ_t<color16_t> texture16_t;
-typedef texture_templ_t<color24_t> texture24_t;
-typedef texture_templ_t<color32_t> texture32_t;
+struct clip_t
+{
+    int16_t x1, y1, x2, y2;
+};
+
+#define position_t int32_t
+
+struct pixel_t
+{
+    position_t x, y;
+    float u, v;
+    color32_t c;
+};
+
+struct line_t
+{
+    pixel_t p1, p2;
+};
+
+struct triangle_t
+{
+    pixel_t p1, p2, p3;
+};
+
+struct rectangle_t
+{
+    pixel_t p1, p2;
+};
 
 //Allows multiple texture modes/types to be stored in a type that can be handled by ImGui
 // struct texture_t
@@ -194,33 +216,86 @@ typedef texture_templ_t<color32_t> texture32_t;
 
 //extern texture_t fontAtlas;
 
-struct clip_t
+// Template the texture struct so we can use different color modes/types
+template <typename COL_T>
+struct texture_t
 {
-    int16_t x1, y1, x2, y2;
+    bool isSetup = false;
+    uint8_t colorMode = 0;
+    size_t w, h;
+    COL_T** col = NULL;
+    void clear()
+    {
+        for(int i = 0; i < w; i++)
+        {
+            for(int j = 0; j < h; j++)
+            {
+                memset(&(col[i][j]), 0x0, colorMode);
+            }
+        }
+    }
+    void pre_init()
+    {
+        colorMode = sizeof(COL_T);
+        col = (COL_T**)malloc(w*sizeof(COL_T*));
+    }
+    void init(size_t x, size_t y)
+    {
+        w = x;
+        h = y;
+        pre_init();
+        for (size_t i = 0; i < w; i++)
+        {
+            col[i] = (COL_T*)malloc(h*sizeof(COL_T));
+        }
+        isSetup = true;
+    }
+    texture_t() : col(NULL), isSetup(false){}
+    texture_t(size_t x, size_t y)
+    {
+        init(x, y);
+    }
+    ~texture_t()
+    {
+        if (col != NULL && isSetup)
+        {
+            for (size_t i = 0; i < w; i++)
+            {
+                if (col[i] != NULL)
+                {
+                    free(col[i]);
+                    col[i] = NULL;
+                }
+            }
+            free(col);
+            col = NULL;
+        }
+        isSetup = false;
+    }
 };
 
-#define position_t int32_t
-
-struct pixel_t
+struct void_texture_t
 {
-    position_t x, y;
-    float u, v;
-    color32_t c;
+    uint8_t mode;
+    void* texture;
 };
 
-struct line_t
+template<typename colType>
+struct screen_t
 {
-    pixel_t p1, p2;
+    texture_t<colType>* buffer;
+    clip_t* clip;
+    size_t w;
+    size_t h;
 };
 
-struct triangle_t
+template<typename screenColType, typename texColType>
+struct renderData_t
 {
-    pixel_t p1, p2, p3;
-};
-
-struct rectangle_t
-{
-    pixel_t p1, p2;
+    screen_t<screenColType>* screen;
+    ImVec4 clipRect;
+    texture_t<texColType>* texture;
+    renderData_t(screen_t<screenColType>* s, texture_t<texColType>* t, ImVec4 c) : screen(s), texture(t), clipRect(c){}
 };
 
 class Softraster
@@ -233,25 +308,35 @@ public:
     static void renderRectBlend(renderData_t<screenColType, void>* renderData, rectangle_t* rect);
     
     template<typename screenColType, typename texColType>
-    static void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
+    static void renderRectTex(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
     
     template<typename screenColType, typename texColType>
-    static void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
+    static void renderRectTexBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
     
     template<typename screenColType>
-    static void Softraster::renderTri(renderData_t<screenColType, void>* renderData, triangle_t* tri);
+    static void renderTri(renderData_t<screenColType, void>* renderData, triangle_t* tri);
     
     template<typename screenColType>
-    static void Softraster::renderTriBlend(renderData_t<screenColType, void>* renderData, triangle_t* tri);
+    static void renderTriBlend(renderData_t<screenColType, void>* renderData, triangle_t* tri);
     
     template<typename screenColType, typename texColType>
-    static void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
+    static void renderTriTex(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
     
     template<typename screenColType, typename texColType>
-    static void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
+    static void renderTriTexBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
     
-    template<typename screenColType, typename texColType>
-    static void Softraster::renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen);
+    template<typename screenColType>//, typename texColType>
+    static void renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen);
 };
+
+position_t dot(const pixel_t& a, const pixel_t& b);
+
+#include "softraster_templ.hpp" 
+
+// typedef texture_t<color8_t> texture8_t;
+// typedef texture_t<const color8_t> ctexture8_t;
+// typedef texture_t<color16_t> texture16_t;
+// typedef texture_t<color24_t> texture24_t;
+// typedef texture_t<color32_t> texture32_t;
 
 #endif

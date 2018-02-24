@@ -1,5 +1,10 @@
 #include "softraster.h"
 
+position_t dot(const pixel_t& a, const pixel_t& b)
+{
+    return (a.x * b.x) + (a.y * b.y);
+}
+
 //texture_t fontAtlas;
 
 
