@@ -236,17 +236,17 @@ void Softraster::renderRect(renderData_t<screenColType, texColType>* renderData,
     const position_t endx = (rect->p2.x < maxclipx ? rect->p2.x : maxclipx);
     const position_t endy = (rect->p2.y < maxclipy ? rect->p2.y : maxclipy);
 
+    #ifdef CLIP_SCREEN
     screen->clip->x1 = (startx < screen->clip->x1 || screen->clip->x1 == -1 ? startx : screen->clip->x1);
     screen->clip->y1 = (starty < screen->clip->y1 || screen->clip->y1 == -1 ? starty : screen->clip->y1);
     screen->clip->x2 = (endx > screen->clip->x2 || screen->clip->x2 == -1 ? endx-1 : screen->clip->x2);
     screen->clip->y2 = (endy > screen->clip->y2 || screen->clip->y2 == -1 ? endy-1 : screen->clip->y2);
+    #endif
 
     for (position_t x = startx; x < endx; x++)
     {
         for (position_t y = starty; y < endy; y++)
         {
-            // Serial.print("X: "); Serial.print(x, HEX);
-            // Serial.print(" Y: "); Serial.println(y, HEX);
             screen->buffer->col[x][y] = convCol<screenColType>(rect->p1.c);
         }
     }
@@ -255,7 +255,6 @@ void Softraster::renderRect(renderData_t<screenColType, texColType>* renderData,
 template<typename screenColType, typename texColType>
 void Softraster::renderRectBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect)
 {
-    // Serial.println("renderRectBlend");
     const screen_t<screenColType>* screen = renderData->screen;
     const ImVec4& clipRect = renderData->clipRect;
 
@@ -277,10 +276,12 @@ void Softraster::renderRectBlend(renderData_t<screenColType, texColType>* render
     const position_t endx = (rect->p2.x < maxclipx ? rect->p2.x : maxclipx);
     const position_t endy = (rect->p2.y < maxclipy ? rect->p2.y : maxclipy);
 
+    #ifdef CLIP_SCREEN
     screen->clip->x1 = (startx < screen->clip->x1 || screen->clip->x1 == -1 ? startx : screen->clip->x1);
     screen->clip->y1 = (starty < screen->clip->y1 || screen->clip->y1 == -1 ? starty : screen->clip->y1);
     screen->clip->x2 = (endx > screen->clip->x2 || screen->clip->x2 == -1 ? endx-1 : screen->clip->x2);
     screen->clip->y2 = (endy > screen->clip->y2 || screen->clip->y2 == -1 ? endy-1 : screen->clip->y2);
+    #endif
 
     for (position_t x = startx; x < endx; x++)
     {
@@ -300,7 +301,6 @@ void Softraster::renderRectBlend(renderData_t<screenColType, texColType>* render
 template<typename screenColType, typename texColType>
 void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect)
 {
-    // Serial.println("renderRectTex");
     const screen_t<screenColType>* screen = renderData->screen;
     const texture_t<texColType>* tex = renderData->texture;
     const ImVec4& clipRect = renderData->clipRect;
@@ -323,10 +323,12 @@ void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderDa
     const position_t endx = (rect->p2.x < maxclipx ? rect->p2.x : maxclipx);
     const position_t endy = (rect->p2.y < maxclipy ? rect->p2.y : maxclipy);
 
+    #ifdef CLIP_SCREEN
     screen->clip->x1 = (startx < screen->clip->x1 || screen->clip->x1 == -1 ? startx : screen->clip->x1);
     screen->clip->y1 = (starty < screen->clip->y1 || screen->clip->y1 == -1 ? starty : screen->clip->y1);
     screen->clip->x2 = (endx > screen->clip->x2 || screen->clip->x2 == -1 ? endx-1 : screen->clip->x2);
     screen->clip->y2 = (endy > screen->clip->y2 || screen->clip->y2 == -1 ? endy-1 : screen->clip->y2);
+    #endif
 
     #ifdef TEXTURE_MODE_CLAMP
     position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f);
@@ -395,7 +397,6 @@ void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderDa
 template<typename screenColType, typename texColType>
 void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect)
 {
-    // Serial.println("renderRectTexBlend");
     const screen_t<screenColType>* screen = renderData->screen;
     const texture_t<texColType>* tex = renderData->texture;
     const ImVec4& clipRect = renderData->clipRect;
@@ -418,10 +419,12 @@ void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* ren
     const position_t endx = (rect->p2.x < maxclipx ? rect->p2.x : maxclipx);
     const position_t endy = (rect->p2.y < maxclipy ? rect->p2.y : maxclipy);
 
+    #ifdef CLIP_SCREEN
     screen->clip->x1 = (startx < screen->clip->x1 || screen->clip->x1 == -1 ? startx : screen->clip->x1);
     screen->clip->y1 = (starty < screen->clip->y1 || screen->clip->y1 == -1 ? starty : screen->clip->y1);
     screen->clip->x2 = (endx > screen->clip->x2 || screen->clip->x2 == -1 ? endx-1 : screen->clip->x2);
     screen->clip->y2 = (endy > screen->clip->y2 || screen->clip->y2 == -1 ? endy-1 : screen->clip->y2);
+    #endif
 
     #ifdef TEXTURE_MODE_CLAMP
     position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f);
@@ -513,7 +516,6 @@ inline void swap(T* tri1, T* tri2)
 template<typename screenColType, typename texColType>
 void Softraster::renderTri(renderData_t<screenColType, texColType>* renderData, triangle_t* tri)
 {
-    // Serial.println("renderTri");
     tri->p1.x = (position_t)(tri->p1.x + 0.5f);
     tri->p2.x = (position_t)(tri->p2.x + 0.5f);
     tri->p3.x = (position_t)(tri->p3.x + 0.5f);
@@ -531,43 +533,38 @@ void Softraster::renderTri(renderData_t<screenColType, texColType>* renderData, 
     const position_t maxclipx = (clipRect.z < screen->w ? clipRect.z : screen->w);
     const position_t maxclipy = (clipRect.w < screen->h ? clipRect.w : screen->h);
 
-    // Serial.println(minclipx); Serial.println(minclipy);
-    // Serial.println(maxclipx); Serial.println(maxclipy);
-
     if ((tri->p3.x < minclipx) ||
-        (tri->p1.x >= maxclipx))
+        (tri->p1.x >= maxclipx)){
         return;
+    }
 
-    screen->clip->x1 = (minclipx < screen->clip->x1 || screen->clip->x1 == -1 ? minclipx : screen->clip->x1);
-    screen->clip->y1 = (minclipy < screen->clip->y1 || screen->clip->y1 == -1 ? minclipy : screen->clip->y1);
-    screen->clip->x2 = (maxclipx > screen->clip->x2 || screen->clip->x2 == -1 ? maxclipx-1 : screen->clip->x2);
-    screen->clip->y2 = (maxclipy > screen->clip->y2 || screen->clip->y2 == -1 ? maxclipy-1 : screen->clip->y2);
-    
-    // Serial.println(screen->clip->x1);
-    // Serial.println(screen->clip->y1);
-    // Serial.println(screen->clip->x2);
-    // Serial.println(screen->clip->y2);
+    #ifdef CLIP_SCREEN
+    screen->clip->x1 = (tri->p1.x < screen->clip->x1 || screen->clip->x1 == -1 ? tri->p1.x : screen->clip->x1);
+    screen->clip->x2 = (tri->p3.x > screen->clip->x2 || screen->clip->x2 == -1 ? tri->p3.x : screen->clip->x2);
+    position_t miny = (tri->p1.y < tri->p2.y ? (tri->p1.y < tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y < tri->p3.y ? tri->p2.y : tri->p3.y));
+    position_t maxy = (tri->p1.y > tri->p2.y ? (tri->p1.y > tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y > tri->p3.y ? tri->p2.y : tri->p3.y));
+    screen->clip->y1 = (miny < screen->clip->y1 || screen->clip->y1 == -1 ? miny : screen->clip->y1);
+    screen->clip->y2 = (maxy > screen->clip->y2 || screen->clip->y2 == -1 ? maxy : screen->clip->y2);
+    #endif
 
     if (tri->p2.x == tri->p3.x) // Flat right triangle
     {
         if (tri->p1.x == tri->p2.x) // Vertical line
         {
-            // Serial.println("pr e Flat line");
             if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
             if (tri->p1.y > tri->p3.y) swap<pixel_t>(&(tri->p1), &(tri->p3));
             if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
+            if (tri->p1.x < minclipx || tri->p1.x > maxclipx) return;
+            const position_t x = tri->p1.x;
             const position_t starty = (tri->p1.y > minclipy ? tri->p1.y : minclipy);
             const position_t endy =   (tri->p3.y < maxclipy ? tri->p3.y : maxclipy);
             for (position_t y = starty; y < endy; y++)
             {
-                // Serial.print("X "); Serial.println(tri->p1.x); 
-                // Serial.print("Y "); Serial.println(y);
-                screen->buffer->col[tri->p1.x][y] = convCol<screenColType>(tri->p1.c);
+                screen->buffer->col[x][y] = convCol<screenColType>(tri->p1.c);
             }
         }
         else
         {
-            // Serial.println("pr e Flat right");
             if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
             const position_t startx = (tri->p1.x > minclipx ? tri->p1.x : minclipx);
             const position_t endx =   (tri->p3.x < maxclipx ? tri->p3.x : maxclipx);
@@ -588,7 +585,6 @@ void Softraster::renderTri(renderData_t<screenColType, texColType>* renderData, 
     }
     else if (tri->p1.x == tri->p2.x) // Flat left triangle
     {
-        // Serial.println("pr e Flat left");
         if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
         const position_t startx = (tri->p1.x > minclipx ? tri->p1.x : minclipx);
         const position_t endx =   (tri->p3.x < maxclipx ? tri->p3.x : maxclipx);
@@ -611,24 +607,23 @@ void Softraster::renderTri(renderData_t<screenColType, texColType>* renderData, 
     float f = (tri->p2.x - tri->p1.x) / (tri->p3.x - tri->p1.x);
 
     pixel_t p4;
-    p4.x = lerp(tri->p1.x, tri->p3.x, f);
-    p4.y = tri->p2.y;
+    p4.y = lerp(tri->p1.y, tri->p3.y, f);
+    p4.x = tri->p2.x;
     p4.c = tri->p1.c;
 
     if (tri->p2.x > p4.x) swap<pixel_t>(&(tri->p2), &p4);
 
-    // Serial.println("Flat right");
     {   // Flat right
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = tri->p2;
-        pixel_t& fp3 = p4;
+        pixel_t fp1 = tri->p1;
+        pixel_t fp2 = tri->p2;
+        pixel_t fp3 = p4;
 
         if (fp2.y > fp3.y) swap<pixel_t>(&(fp2), &(fp3));
         const position_t startx = (fp1.x > minclipx ? fp1.x : minclipx);
         const position_t endx =   (fp3.x < maxclipx ? fp3.x : maxclipx);
         for (position_t x = startx; x < endx; x++)
         {
-            float f = (x - fp1.x) / (float)(fp3.x - fp1.x);
+            const float f = (x - fp1.x) / (float)(fp3.x - fp1.x);
             position_t starty = lerp(fp1.y, fp2.y, f);
             position_t endy =   lerp(fp1.y, fp3.y, f);
             starty = (starty > minclipy ? starty : minclipy);
@@ -640,11 +635,10 @@ void Softraster::renderTri(renderData_t<screenColType, texColType>* renderData, 
         }
     }
 
-    // Serial.println("Flat left");
     {   // Flat left
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = p4;
-        pixel_t& fp3 = tri->p3;
+        pixel_t fp1 = tri->p2;
+        pixel_t fp2 = p4;
+        pixel_t fp3 = tri->p3;
 
         if (fp1.y > fp2.y) swap<pixel_t>(&(fp1), &(fp2));
         const position_t startx = (fp1.x > minclipx ? fp1.x : minclipx);
@@ -667,7 +661,6 @@ void Softraster::renderTri(renderData_t<screenColType, texColType>* renderData, 
 template<typename screenColType, typename texColType>
 void Softraster::renderTriBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri)
 {
-    // Serial.println("renderTriBlend");
     tri->p1.x = (position_t)(tri->p1.x + 0.5f);
     tri->p2.x = (position_t)(tri->p2.x + 0.5f);
     tri->p3.x = (position_t)(tri->p3.x + 0.5f);
@@ -689,11 +682,15 @@ void Softraster::renderTriBlend(renderData_t<screenColType, texColType>* renderD
         (tri->p1.x >= maxclipx))
         return;
 
-    screen->clip->x1 = (minclipx < screen->clip->x1 || screen->clip->x1 == -1 ? minclipx : screen->clip->x1);
-    screen->clip->y1 = (minclipy < screen->clip->y1 || screen->clip->y1 == -1 ? minclipy : screen->clip->y1);
-    screen->clip->x2 = (maxclipx > screen->clip->x2 || screen->clip->x2 == -1 ? maxclipx-1 : screen->clip->x2);
-    screen->clip->y2 = (maxclipy > screen->clip->y2 || screen->clip->y2 == -1 ? maxclipy-1 : screen->clip->y2);
-    
+    #ifdef CLIP_SCREEN
+    screen->clip->x1 = (tri->p1.x < screen->clip->x1 || screen->clip->x1 == -1 ? tri->p1.x : screen->clip->x1);
+    screen->clip->x2 = (tri->p3.x > screen->clip->x2 || screen->clip->x2 == -1 ? tri->p3.x : screen->clip->x2);
+    position_t miny = (tri->p1.y < tri->p2.y ? (tri->p1.y < tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y < tri->p3.y ? tri->p2.y : tri->p3.y));
+    position_t maxy = (tri->p1.y > tri->p2.y ? (tri->p1.y > tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y > tri->p3.y ? tri->p2.y : tri->p3.y));
+    screen->clip->y1 = (miny < screen->clip->y1 || screen->clip->y1 == -1 ? miny : screen->clip->y1);
+    screen->clip->y2 = (maxy > screen->clip->y2 || screen->clip->y2 == -1 ? maxy : screen->clip->y2);
+    #endif
+
     if (tri->p2.x == tri->p3.x) // Flat right triangle
     {
         if (tri->p1.x == tri->p2.x) // Flat line
@@ -701,6 +698,8 @@ void Softraster::renderTriBlend(renderData_t<screenColType, texColType>* renderD
             if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
             if (tri->p1.y > tri->p3.y) swap<pixel_t>(&(tri->p1), &(tri->p3));
             if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
+            if (tri->p1.x < minclipx || tri->p1.x > maxclipx) return;
+            const position_t x = tri->p1.x;
             const bary_t bary = baryPre(tri->p1, tri->p2, tri->p3);
             const position_t starty = tri->p1.y;
             const position_t endy =   tri->p3.y;
@@ -708,11 +707,11 @@ void Softraster::renderTriBlend(renderData_t<screenColType, texColType>* renderD
             {
                 pixel_t p; p.x = tri->p1.x; p.y = y;
                 barycentricCol(p, bary);
-                color24_t prev = convCol<color24_t>(screen->buffer->col[tri->p1.x][y]);
+                color24_t prev = convCol<color24_t>(screen->buffer->col[x][y]);
                 prev.r = lerp(prev.r, p.c.r, p.c.a);
                 prev.g = lerp(prev.g, p.c.g, p.c.a);
                 prev.b = lerp(prev.b, p.c.b, p.c.a);
-                screen->buffer->col[tri->p1.x][y] = convCol<screenColType>(prev);
+                screen->buffer->col[x][y] = convCol<screenColType>(prev);
             }
         }
         else
@@ -780,9 +779,9 @@ void Softraster::renderTriBlend(renderData_t<screenColType, texColType>* renderD
     if (tri->p2.x > p4.x) swap<pixel_t>(&(tri->p2), &p4);
 
     {   // Flat right
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = tri->p2;
-        pixel_t& fp3 = p4;
+        pixel_t fp1 = tri->p1;
+        pixel_t fp2 = tri->p2;
+        pixel_t fp3 = p4;
         if (fp2.y > fp3.y) swap<pixel_t>(&(fp2), &(fp3));
 
         const bary_t bary = baryPre(fp1, fp2, fp3);
@@ -809,9 +808,9 @@ void Softraster::renderTriBlend(renderData_t<screenColType, texColType>* renderD
     }
 
     {   // Flat left
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = p4;
-        pixel_t& fp3 = tri->p3;
+        pixel_t fp1 = tri->p2;
+        pixel_t fp2 = p4;
+        pixel_t fp3 = tri->p3;
         if (fp1.y > fp2.y) swap<pixel_t>(&(fp1), &(fp2));
 
         const bary_t bary = baryPre(fp1, fp2, fp3);
@@ -864,11 +863,15 @@ void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderDat
         (tri->p1.x >= maxclipx))
         return;
 
-    screen->clip->x1 = (minclipx < screen->clip->x1 || screen->clip->x1 == -1 ? minclipx : screen->clip->x1);
-    screen->clip->y1 = (minclipy < screen->clip->y1 || screen->clip->y1 == -1 ? minclipy : screen->clip->y1);
-    screen->clip->x2 = (maxclipx > screen->clip->x2 || screen->clip->x2 == -1 ? maxclipx-1 : screen->clip->x2);
-    screen->clip->y2 = (maxclipy > screen->clip->y2 || screen->clip->y2 == -1 ? maxclipy-1 : screen->clip->y2);
-    
+    #ifdef CLIP_SCREEN
+    screen->clip->x1 = (tri->p1.x < screen->clip->x1 || screen->clip->x1 == -1 ? tri->p1.x : screen->clip->x1);
+    screen->clip->x2 = (tri->p3.x > screen->clip->x2 || screen->clip->x2 == -1 ? tri->p3.x : screen->clip->x2);
+    position_t miny = (tri->p1.y < tri->p2.y ? (tri->p1.y < tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y < tri->p3.y ? tri->p2.y : tri->p3.y));
+    position_t maxy = (tri->p1.y > tri->p2.y ? (tri->p1.y > tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y > tri->p3.y ? tri->p2.y : tri->p3.y));
+    screen->clip->y1 = (miny < screen->clip->y1 || screen->clip->y1 == -1 ? miny : screen->clip->y1);
+    screen->clip->y2 = (maxy > screen->clip->y2 || screen->clip->y2 == -1 ? maxy : screen->clip->y2);
+    #endif
+
     if (tri->p2.x == tri->p3.x) // Flat right triangle
     {
         if (tri->p1.x == tri->p2.x) // Flat line
@@ -876,12 +879,14 @@ void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderDat
             if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
             if (tri->p1.y > tri->p3.y) swap<pixel_t>(&(tri->p1), &(tri->p3));
             if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
+            if (tri->p1.x < minclipx || tri->p1.x > maxclipx) return;
+            const position_t x = tri->p1.x;
             const bary_t bary = baryPre(tri->p1, tri->p2, tri->p3);
             const position_t starty = (tri->p1.y > minclipy ? tri->p1.y : minclipy);
             const position_t endy =   (tri->p3.y < maxclipy ? tri->p3.y : maxclipy);
             for (position_t y = starty; y < endy; y++)
             {
-                pixel_t p; p.x = tri->p1.x; p.y = y;
+                pixel_t p; p.x = x; p.y = y;
                 barycentricUV(p, bary);
                 #ifdef TEXTURE_MODE_CLAMP
                 position_t u = (position_t)((p.u * tex->w) + 0.5f);
@@ -898,7 +903,7 @@ void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderDat
                 c.r = (c.r * tri->p1.c.r) / 255;
                 c.g = (c.g * tri->p1.c.g) / 255;
                 c.b = (c.b * tri->p1.c.b) / 255;
-                screen->buffer->col[tri->p1.x][y] = convCol<screenColType>(c);
+                screen->buffer->col[x][y] = convCol<screenColType>(c);
             }
         }
         else
@@ -988,9 +993,9 @@ void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderDat
     if (tri->p2.x > p4.x) swap<pixel_t>(&(tri->p2), &p4);
 
     {   // Flat right
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = tri->p2;
-        pixel_t& fp3 = p4;
+        pixel_t fp1 = tri->p1;
+        pixel_t fp2 = tri->p2;
+        pixel_t fp3 = p4;
 
         if (fp2.y > fp3.y) swap<pixel_t>(&(fp2), &(fp3));
         const bary_t bary = baryPre(fp1, fp2, fp3);
@@ -1028,9 +1033,9 @@ void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderDat
     }
 
     {   // Flat left
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = p4;
-        pixel_t& fp3 = tri->p3;
+        pixel_t fp1 = tri->p2;
+        pixel_t fp2 = p4;
+        pixel_t fp3 = tri->p3;
 
         if (fp1.y > fp2.y) swap<pixel_t>(&(fp1), &(fp2));
         const bary_t bary = baryPre(fp1, fp2, fp3);
@@ -1071,7 +1076,6 @@ void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderDat
 template<typename screenColType, typename texColType>
 void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri)
 {
-    // Serial.println("renderTriTexBlend");
     tri->p1.x = (position_t)(tri->p1.x + 0.5f);
     tri->p2.x = (position_t)(tri->p2.x + 0.5f);
     tri->p3.x = (position_t)(tri->p3.x + 0.5f);
@@ -1094,11 +1098,15 @@ void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* rend
         (tri->p1.x >= maxclipx))
         return;
 
-    screen->clip->x1 = (minclipx < screen->clip->x1 || screen->clip->x1 == -1 ? minclipx : screen->clip->x1);
-    screen->clip->y1 = (minclipy < screen->clip->y1 || screen->clip->y1 == -1 ? minclipy : screen->clip->y1);
-    screen->clip->x2 = (maxclipx > screen->clip->x2 || screen->clip->x2 == -1 ? maxclipx-1 : screen->clip->x2);
-    screen->clip->y2 = (maxclipy > screen->clip->y2 || screen->clip->y2 == -1 ? maxclipy-1 : screen->clip->y2);
-    
+    #ifdef CLIP_SCREEN
+    screen->clip->x1 = (tri->p1.x < screen->clip->x1 || screen->clip->x1 == -1 ? tri->p1.x : screen->clip->x1);
+    screen->clip->x2 = (tri->p3.x > screen->clip->x2 || screen->clip->x2 == -1 ? tri->p3.x : screen->clip->x2);
+    position_t miny = (tri->p1.y < tri->p2.y ? (tri->p1.y < tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y < tri->p3.y ? tri->p2.y : tri->p3.y));
+    position_t maxy = (tri->p1.y > tri->p2.y ? (tri->p1.y > tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y > tri->p3.y ? tri->p2.y : tri->p3.y));
+    screen->clip->y1 = (miny < screen->clip->y1 || screen->clip->y1 == -1 ? miny : screen->clip->y1);
+    screen->clip->y2 = (maxy > screen->clip->y2 || screen->clip->y2 == -1 ? maxy : screen->clip->y2);
+    #endif
+
     if (tri->p2.x == tri->p3.x) // Flat right triangle
     {
         if (tri->p1.x == tri->p2.x) // Flat line
@@ -1106,12 +1114,14 @@ void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* rend
             if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
             if (tri->p1.y > tri->p3.y) swap<pixel_t>(&(tri->p1), &(tri->p3));
             if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
+            if (tri->p1.x < minclipx || tri->p1.x > maxclipx) return;
+            const position_t x = tri->p1.x;
             const bary_t bary = baryPre(tri->p1, tri->p2, tri->p3);
             const position_t starty = (tri->p1.y > minclipy ? tri->p1.y : minclipy);
             const position_t endy =   (tri->p3.y < maxclipy ? tri->p3.y : maxclipy);
             for (position_t y = starty; y < endy; y++)
             {
-                pixel_t p; p.x = tri->p1.x; p.y = y;
+                pixel_t p; p.x = x; p.y = y;
                 barycentricUV(p, bary);
                 #ifdef TEXTURE_MODE_CLAMP
                 position_t u = (position_t)((p.u * tex->w) + 0.5f);
@@ -1137,12 +1147,12 @@ void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* rend
                 }
                 else
                 {
-                    prev = convCol<color24_t>(screen->buffer->col[tri->p1.x][y]);
+                    prev = convCol<color24_t>(screen->buffer->col[x][y]);
                     prev.r = lerp(prev.r, c.r, c.a);
                     prev.g = lerp(prev.g, c.g, c.a);
                     prev.b = lerp(prev.b, c.b, c.a);
                 }
-                screen->buffer->col[tri->p1.x][y] = convCol<screenColType>(prev);
+                screen->buffer->col[x][y] = convCol<screenColType>(prev);
             }
         }
         else
@@ -1260,9 +1270,9 @@ void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* rend
     if (tri->p2.x > p4.x) swap<pixel_t>(&(tri->p2), &p4);
 
     {   // Flat right
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = tri->p2;
-        pixel_t& fp3 = p4;
+        pixel_t fp1 = tri->p1;
+        pixel_t fp2 = tri->p2;
+        pixel_t fp3 = p4;
 
         if (fp2.y > fp3.y) swap<pixel_t>(&(fp2), &(fp3));
         const bary_t bary = baryPre(fp1, fp2, fp3);
@@ -1314,9 +1324,9 @@ void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* rend
     }
 
     {   // Flat left
-        pixel_t& fp1 = tri->p1;
-        pixel_t& fp2 = p4;
-        pixel_t& fp3 = tri->p3;
+        pixel_t fp1 = tri->p2;
+        pixel_t fp2 = p4;
+        pixel_t fp3 = tri->p3;
 
         if (fp1.y > fp2.y) swap<pixel_t>(&(fp1), &(fp2));
         const bary_t bary = baryPre(fp1, fp2, fp3);
@@ -1368,7 +1378,7 @@ void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* rend
     }
 }
 
-template<typename screenColType>//, typename texColType>
+template<typename screenColType>
 void Softraster::renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -1468,9 +1478,6 @@ void Softraster::renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* id
             &vtx_buffer[idx_buffer[i+1]],
             &vtx_buffer[idx_buffer[i+2]]
         };
-
-        //Serial.print("X: "); Serial.print(verts[0]->pos.x, HEX);
-        //Serial.print(" Y: "); Serial.println(verts[0]->pos.y, HEX);
 
         if (i < pcmd->ElemCount - 3)
         {
@@ -1599,17 +1606,14 @@ void Softraster::renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* id
             if (flatCol) {
                 renderTri(renderData, &tri);
             } else {
-                Serial.println("Blend");
                 renderTriBlend(renderData, &tri);
             }
         }
         else 
         {
             if (flatCol) {
-                Serial.println("Tex");
                 renderTriTex(renderData, &tri);
             } else {
-                Serial.println("TexBlend");
                 renderTriTexBlend(renderData, &tri);
             }
         }

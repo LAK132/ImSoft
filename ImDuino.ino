@@ -1,4 +1,5 @@
 #define SCREEN_MODE_8
+#define CLIP_SCREEN
 #include "softraster.h"
 #include "imgui.h"
 
@@ -34,10 +35,10 @@ TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTSDI, TFTCLK, TFTLED
 
 void updateScreen()
 {
-  int16_t& x1 = screenClip.x1;
-  int16_t& y1 = screenClip.y1;
-  int16_t& x2 = screenClip.x2;
-  int16_t& y2 = screenClip.y2;
+  int16_t x1 = screenClip.x1 > 0 ? screenClip.x1 : 0;
+  int16_t y1 = screenClip.y1 > 0 ? screenClip.y1 : 0;
+  int16_t x2 = screenClip.x2 < TFTX ? screenClip.x2 : TFTX-1;
+  int16_t y2 = screenClip.y2 < TFTY ? screenClip.y2 : TFTY-1;
 
   if (x1 == -1 || y1 == -1 || x2 == -1 || y2 == -1) return;
 
@@ -53,10 +54,10 @@ void updateScreen()
   }
   tft.endWrite();
 
-  x1 = -1;
-  y1 = -1;
-  x2 = -1;
-  y2 = -1;
+  screenClip.x1 = -1;
+  screenClip.y1 = -1;
+  screenClip.x2 = -1;
+  screenClip.y2 = -1;
   // x1 = 0;
   // y1 = 0;
   // x2 = TFTX-1;
@@ -100,6 +101,7 @@ void setup()
   ImGuiStyle& style = ImGui::GetStyle();
   style.AntiAliasedLines = false;
   style.AntiAliasedFill = false;
+  style.WindowRounding = 0.0f;
   
   #ifdef SMALL_ATLAS
   io.Fonts->Flags |= ImFontAtlasFlags_NoPowerOfTwoHeight | ImFontAtlasFlags_NoMouseCursors;
@@ -129,7 +131,7 @@ void setup()
   io.Fonts->ClearInputData();
   io.Fonts->ClearTexData();  //ImGui::MemFree(pixels);
 
-  fontAtlas.pre_init();//COLOR8);
+  fontAtlas.pre_init();
   for(size_t i = 0; i < fontAtlas.w; i++)
   {
     fontAtlas.col[i] = (color8_t*)&(fontAtlasPixels[i * fontAtlas.h]);
@@ -140,9 +142,7 @@ void setup()
 
   io.Fonts->TexID = &fontAtlasVdPtr;
 
-  screenBuffer.init(TFTX, TFTY);//, COLOR16);
-
-  Serial.println("wooT");
+  screenBuffer.init(TFTX, TFTY);
 
   screen.w = TFTX;
   screen.h = TFTY;
@@ -198,7 +198,7 @@ void loop()
   screenBuffer.clear();
   
   ImGui::Render();
-  Serial.println("fin bitconnnnnnnnnneeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeect");
+  // Serial.println("fin bitconnnnnnnnnneeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeect");
   //delay(5000);
 }
 
