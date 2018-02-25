@@ -1,3 +1,5 @@
+#define SCREEN_MODE_8
+#define CLIP_SCREEN
 #include "softraster.h"
 #include "imgui.h"
 
@@ -22,19 +24,21 @@ const uint8_t TFTSDI = HSPIMOSI;
 #define TFTX 220
 #define TFTY 176
 
-texture_t screenBuffer;
+screen_t<color16_t> screen;
 clip_t screenClip;
-screen_t screen;
+texture_t<color16_t> screenBuffer;
+texture_t<color8_t> fontAtlas;
+void_texture_t fontAtlasVdPtr;
 
 TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTSDI, TFTCLK, TFTLED, 128);
 //SPIClass tftspi(HSPI);
 
 void updateScreen()
 {
-  int16_t& x1 = screenClip.x1;
-  int16_t& y1 = screenClip.y1;
-  int16_t& x2 = screenClip.x2;
-  int16_t& y2 = screenClip.y2;
+  int16_t x1 = screenClip.x1 > 0 ? screenClip.x1 : 0;
+  int16_t y1 = screenClip.y1 > 0 ? screenClip.y1 : 0;
+  int16_t x2 = screenClip.x2 < TFTX ? screenClip.x2 : TFTX-1;
+  int16_t y2 = screenClip.y2 < TFTY ? screenClip.y2 : TFTY-1;
 
   if (x1 == -1 || y1 == -1 || x2 == -1 || y2 == -1) return;
 
@@ -43,17 +47,21 @@ void updateScreen()
   {
     for (int16_t y = y1; y <= y2; y++) 
     {
-      uint16_t& col = screenBuffer.tex16.col[x][y];
+      uint16_t& col = screenBuffer.col[x][y];
       tft._spiWrite(col>>8);
       tft._spiWrite(col);
     }
   }
   tft.endWrite();
 
-  x1 = -1;
-  y1 = -1;
-  x2 = -1;
-  y2 = -1;
+  screenClip.x1 = -1;
+  screenClip.y1 = -1;
+  screenClip.x2 = -1;
+  screenClip.y2 = -1;
+  // x1 = 0;
+  // y1 = 0;
+  // x2 = TFTX-1;
+  // y2 = TFTY-1;
   //tft.drawBitmap(0, 0, screenBuffer.tex16.col, screenBuffer.tex16.w, screenBuffer.tex16.h);
 }
 
@@ -93,6 +101,7 @@ void setup()
   ImGuiStyle& style = ImGui::GetStyle();
   style.AntiAliasedLines = false;
   style.AntiAliasedFill = false;
+  style.WindowRounding = 0.0f;
   
   #ifdef SMALL_ATLAS
   io.Fonts->Flags |= ImFontAtlasFlags_NoPowerOfTwoHeight | ImFontAtlasFlags_NoMouseCursors;
@@ -101,8 +110,8 @@ void setup()
   uint8_t* pixels;
   int width, height;
   io.Fonts->GetTexDataAsAlpha8(&pixels, &(width), &(height));
-  fontAtlas.tex8.w = width;
-  fontAtlas.tex8.h = height;
+  fontAtlas.w = width;
+  fontAtlas.h = height;
 
   #ifdef PRINT_ATLAS
   Serial.print("{");
@@ -122,17 +131,18 @@ void setup()
   io.Fonts->ClearInputData();
   io.Fonts->ClearTexData();  //ImGui::MemFree(pixels);
 
-  fontAtlas.pre_init(COLOR8);
-  for(size_t i = 0; i < fontAtlas.tex8.w; i++)
+  fontAtlas.pre_init();
+  for(size_t i = 0; i < fontAtlas.w; i++)
   {
-    fontAtlas.ctex8.col[i] = &(fontAtlasPixels[i * fontAtlas.tex8.h]);
+    fontAtlas.col[i] = (color8_t*)&(fontAtlasPixels[i * fontAtlas.h]);
   }
   
-  io.Fonts->TexID = (void*)&fontAtlas;
+  fontAtlasVdPtr.texture = (void*)&fontAtlas;
+  fontAtlasVdPtr.mode = fontAtlas.colorMode;
 
-  screenBuffer.init(TFTX, TFTY, COLOR16);
+  io.Fonts->TexID = &fontAtlasVdPtr;
 
-  Serial.println("wooT");
+  screenBuffer.init(TFTX, TFTY);
 
   screen.w = TFTX;
   screen.h = TFTY;
@@ -143,6 +153,7 @@ void setup()
 float f = 0.0f;
 float time = 0.0f;
 
+// try while 1 in loop instead of going off the end of the loop (add delay(0))
 void loop()
 {
   ImGuiIO& io = ImGui::GetIO();
@@ -173,10 +184,13 @@ void loop()
   
   deltaTime -= (drawTime + rasterTime);
   
+  //Serial.print("Draw time: "); Serial.println(drawTime);
   ImGui::Text("Draw time %f ms", drawTime / 1.0f);
   
+  //Serial.print("Raster time: "); Serial.println(rasterTime);
   ImGui::Text("Raster time %f ms", rasterTime / 1.0f);
 
+  //Serial.print("Remaining time: "); Serial.println(deltaTime);
   ImGui::Text("Remaining time %f ms", deltaTime);
   
   ImGui::SliderFloat("float3", &f, 0.0f, 1.0f);
@@ -184,5 +198,7 @@ void loop()
   screenBuffer.clear();
   
   ImGui::Render();
+  // Serial.println("fin bitconnnnnnnnnneeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeect");
+  //delay(5000);
 }
 
