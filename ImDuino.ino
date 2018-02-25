@@ -198,5 +198,7 @@ void loop()
   screenBuffer.clear();
   
   ImGui::Render();
+  Serial.println("fin bitconnnnnnnnnneeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeect");
+  //delay(5000);
 }
 

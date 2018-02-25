@@ -326,12 +326,12 @@ public:
     
     template<typename screenColType, typename texColType>
     static void renderTriTexBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
-    
-    template<typename screenColType>//, typename texColType>
-    static void renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen);
 
     template<typename screenColType, typename texColType>
     static void renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* idx_buffer, const ImDrawCmd* pcmd, renderData_t<screenColType, texColType>* renderData);
+    
+    template<typename screenColType>//, typename texColType>
+    static void renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen);
 };
 
 position_t dot(const pixel_t& a, const pixel_t& b);
