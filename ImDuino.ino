@@ -1,5 +1,5 @@
 #define SCREEN_MODE_8
-#define CLIP_SCREEN
+//#define CLIP_SCREEN
 #include "softraster.h"
 #include "imgui.h"
 
@@ -14,12 +14,12 @@
 
 #include "ESP32pinout.h"
 
-const uint8_t TFTLED = 25;
-const uint8_t TFTRST = 26;
-const uint8_t TFTRS = 27;
-const uint8_t TFTCS = HSPICS0; 
-const uint8_t TFTCLK = HSPICLK; 
-const uint8_t TFTSDI = HSPIMOSI; 
+const uint8_t TFTLED =  PIN32; //PIN25;
+const uint8_t TFTRST =  PIN33; //PIN26;
+const uint8_t TFTRS =   PIN27;
+const uint8_t TFTCS =   HSPICS0; 
+const uint8_t TFTCLK =  HSPICLK; 
+const uint8_t TFTSDI =  HSPIMOSI;
 
 #define TFTX 220
 #define TFTY 176
@@ -54,15 +54,17 @@ void updateScreen()
   }
   tft.endWrite();
 
+  #ifdef CLIP_SCREEN
   screenClip.x1 = -1;
   screenClip.y1 = -1;
   screenClip.x2 = -1;
   screenClip.y2 = -1;
-  // x1 = 0;
-  // y1 = 0;
-  // x2 = TFTX-1;
-  // y2 = TFTY-1;
-  //tft.drawBitmap(0, 0, screenBuffer.tex16.col, screenBuffer.tex16.w, screenBuffer.tex16.h);
+  #else
+  screenClip.x1 = 0;
+  screenClip.y1 = 0;
+  screenClip.x2 = TFTX-1;
+  screenClip.y2 = TFTY-1;
+  #endif
 }
 
 unsigned long drawTime;
@@ -96,7 +98,7 @@ void setup()
   ImGuiIO& io = ImGui::GetIO();
   io.DisplaySize.x = TFTX;
   io.DisplaySize.y = TFTY;
-  io.RenderDrawListsFn = renderFunc;
+  //io.RenderDrawListsFn = renderFunc; //obsolete
 
   ImGuiStyle& style = ImGui::GetStyle();
   style.AntiAliasedLines = false;
@@ -175,6 +177,8 @@ void loop()
   io.NavInputs[ImGuiNavInput_TweakFast] = 0.0f;   // faster tweaks                                // e.g. R1 or R2 (PS4), RB or RT (Xbox), R or ZL (Switch)
 
   ImGui::NewFrame();
+  ImGui::SetWindowPos(ImVec2(0.0, 0.0));
+  ImGui::SetWindowSize(ImVec2(TFTX, TFTY));
   
   f += 0.05;
   if(f > 1.0f) f = 0.0f;
@@ -198,6 +202,7 @@ void loop()
   screenBuffer.clear();
   
   ImGui::Render();
+  renderFunc(ImGui::GetDrawData());
   // Serial.println("fin bitconnnnnnnnnneeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeect");
   //delay(5000);
 }
