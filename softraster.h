@@ -1,7 +1,9 @@
 // Based on sronsse's software rasterizer for SDL https://github.com/sronsse/imgui/blob/sw_rasterizer_example/examples/sdl_sw_example/imgui_impl_sdl.cpp 
 #ifndef SOFTRASTER_H
 #define SOFTRASTER_H 
-
+#ifdef ARDUINO
+#include "arduino.h"
+#endif
 #include "stdint.h"
 #include "math.h"
 #include "imgui.h"
@@ -301,11 +303,11 @@ struct renderData_t
 class Softraster
 {
 public:
-    template<typename screenColType>
-    static void renderRect(renderData_t<screenColType, void>* renderData, rectangle_t* rect);
+    template<typename screenColType, typename texColType>
+    static void renderRect(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
     
-    template<typename screenColType>
-    static void renderRectBlend(renderData_t<screenColType, void>* renderData, rectangle_t* rect);
+    template<typename screenColType, typename texColType>
+    static void renderRectBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
     
     template<typename screenColType, typename texColType>
     static void renderRectTex(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
@@ -313,11 +315,11 @@ public:
     template<typename screenColType, typename texColType>
     static void renderRectTexBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect);
     
-    template<typename screenColType>
-    static void renderTri(renderData_t<screenColType, void>* renderData, triangle_t* tri);
+    template<typename screenColType, typename texColType>
+    static void renderTri(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
     
-    template<typename screenColType>
-    static void renderTriBlend(renderData_t<screenColType, void>* renderData, triangle_t* tri);
+    template<typename screenColType, typename texColType>
+    static void renderTriBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
     
     template<typename screenColType, typename texColType>
     static void renderTriTex(renderData_t<screenColType, texColType>* renderData, triangle_t* tri);
@@ -327,6 +329,9 @@ public:
     
     template<typename screenColType>//, typename texColType>
     static void renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen);
+
+    template<typename screenColType, typename texColType>
+    static void renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* idx_buffer, const ImDrawCmd* pcmd, renderData_t<screenColType, texColType>* renderData);
 };
 
 position_t dot(const pixel_t& a, const pixel_t& b);

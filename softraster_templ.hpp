@@ -1,7 +1,6 @@
 #ifndef SOFTRASTER_TEMPL_H
 #define SOFTRASTER_TEMPL_H
 #include "softraster.h"
-#include "arduino.h"
 
 // Linear interpolation functions
 template<typename T>
@@ -212,10 +211,10 @@ inline void barycentricUVCol(pixel_t& p, const bary_t& bary)
     p.c.a = (bary.a.c.a * u) + (bary.b.c.a * v) + (bary.c.c.a * w);
 }
 
-template<typename screenColType>
-void Softraster::renderRect(renderData_t<screenColType, void>* renderData, rectangle_t* rect)
+template<typename screenColType, typename texColType>
+void Softraster::renderRect(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect)
 {
-    Serial.println("renderRect");
+    // Serial.println("renderRect");
     const screen_t<screenColType>* screen = renderData->screen;
     const ImVec4& clipRect = renderData->clipRect;
 
@@ -246,17 +245,17 @@ void Softraster::renderRect(renderData_t<screenColType, void>* renderData, recta
     {
         for (position_t y = starty; y < endy; y++)
         {
-            Serial.print("X: "); Serial.print(x, HEX);
-            Serial.print(" Y: "); Serial.println(y, HEX);
+            // Serial.print("X: "); Serial.print(x, HEX);
+            // Serial.print(" Y: "); Serial.println(y, HEX);
             screen->buffer->col[x][y] = convCol<screenColType>(rect->p1.c);
         }
     }
 }
 
-template<typename screenColType>
-void Softraster::renderRectBlend(renderData_t<screenColType, void>* renderData, rectangle_t* rect)
+template<typename screenColType, typename texColType>
+void Softraster::renderRectBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect)
 {
-    Serial.println("renderRectBlend");
+    // Serial.println("renderRectBlend");
     const screen_t<screenColType>* screen = renderData->screen;
     const ImVec4& clipRect = renderData->clipRect;
 
@@ -301,7 +300,7 @@ void Softraster::renderRectBlend(renderData_t<screenColType, void>* renderData, 
 template<typename screenColType, typename texColType>
 void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect)
 {
-    Serial.println("renderRectTex");
+    // Serial.println("renderRectTex");
     const screen_t<screenColType>* screen = renderData->screen;
     const texture_t<texColType>* tex = renderData->texture;
     const ImVec4& clipRect = renderData->clipRect;
@@ -329,36 +328,43 @@ void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderDa
     screen->clip->x2 = (endx > screen->clip->x2 || screen->clip->x2 == -1 ? endx-1 : screen->clip->x2);
     screen->clip->y2 = (endy > screen->clip->y2 || screen->clip->y2 == -1 ? endy-1 : screen->clip->y2);
 
-    const float duDx = (rect->p2.u - rect->p1.u) / (float)(rect->p2.x - rect->p1.x);
-    const float dvDy = (rect->p2.v - rect->p1.v) / (float)(rect->p2.y - rect->p1.y);
-
-    const float startu = rect->p1.u + (duDx * (float)(rect->p1.x - minclipx < 0 ? minclipx + rect->p1.x : 0));
-    const float startv = rect->p1.v + (dvDy * (float)(rect->p1.v - minclipx < 0 ? minclipx + rect->p1.v : 0));
-
     #ifdef TEXTURE_MODE_CLAMP
-    position_t u = (position_t)((startu * tex->w) + 0.5f);
-    position_t v = (position_t)((startv * tex->h) + 0.5f);
-    if (u < 0) u = 0;
-    else if (u > tex->w) u = tex->w - 1;
-    if (v < 0) v = 0;
-    else if (v > tex->h) v = tex->h - 1;
+    position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f);
+    position_t p1v = (position_t)((rect->p1.v * tex->h) + 0.5f);
+    position_t p2u = (position_t)((rect->p2.u * tex->w) + 0.5f);
+    position_t p2v = (position_t)((rect->p2.v * tex->h) + 0.5f);
+    if (p1u < 0) p1u = 0;
+    else if (p1u > tex->w) p1u = tex->w - 1;
+    if (p1v < 0) p1v = 0;
+    else if (p1v > tex->h) p1v = tex->h - 1;
+    if (p2u < 0) p2u = 0;
+    else if (p2u > tex->w) p2u = tex->w - 1;
+    if (p2v < 0) p2v = 0;
+    else if (p2v > tex->h) p2v = tex->h - 1;
     #else
-    position_t u = (position_t)((startu * tex->w) + 0.5f) % tex->w; 
-    position_t v = (position_t)((startv * tex->h) + 0.5f) % tex->h;
+    position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f) % tex->w; 
+    position_t p1v = (position_t)((rect->p1.v * tex->h) + 0.5f) % tex->h;
+    position_t p2u = (position_t)((rect->p2.u * tex->w) + 0.5f) % tex->w; 
+    position_t p2v = (position_t)((rect->p2.v * tex->h) + 0.5f) % tex->h;
     #endif
 
-    bool blit = (((position_t)(duDx + 0.5f) == 1) && ((position_t)(dvDy + 0.5f) == 1));
+    const float duDx = (float)(p2u - p1u) / (float)(rect->p2.x - rect->p1.x);
+    const float dvDy = (float)(p2v - p1v) / (float)(rect->p2.y - rect->p1.y);
+
+    const float startu = p1u + (duDx * (float)(startx - rect->p1.x > 0 ? startx - rect->p1.x : 0));
+    const float startv = p1v + (dvDy * (float)(starty - rect->p1.y > 0 ? starty - rect->p1.y : 0));
+
+    bool blit = ((duDx == 1.0f) && (dvDy == 1.0f));
 
     if (blit)
     {
-        position_t u2 = u - startx, v2 = v - starty;
+        position_t u = startu - startx, v = startv - starty;
         for (position_t x = startx; x < endx; x++)
         {
             for (position_t y = starty; y < endy; y++)
             {
-                Serial.print("X: "); Serial.print(x, HEX);
-                Serial.print(" Y: "); Serial.println(y, HEX);
-                color24_t c = convCol<color24_t>(tex->col[x+u2][y+v2]);
+                color32_t c = convCol<color32_t>(tex->col[u+x][v+y]);
+                if (c.a == 0) continue;
                 c.r = (c.r * rect->p1.c.r) / 255;
                 c.g = (c.g * rect->p1.c.g) / 255;
                 c.b = (c.b * rect->p1.c.b) / 255;
@@ -368,21 +374,20 @@ void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderDa
     }
     else
     {
-        float u2 = u, v2 = v;
+        float u = startu, v = startv;
         for (position_t x = startx; x < endx; x++)
         {
             for (position_t y = starty; y < endy; y++)
             {
-                Serial.print("X: "); Serial.print(x, HEX);
-                Serial.print(" Y: "); Serial.println(y, HEX);
-                color24_t c = convCol<color24_t>(tex->col[(position_t)(u2+0.5f)][(position_t)(v2+0.5f)]);
+                color32_t c = convCol<color32_t>(tex->col[(position_t)(u+0.5f)][(position_t)(v+0.5f)]);
+                if (c.a == 0) continue;
                 c.r = (c.r * rect->p1.c.r) / 255;
                 c.g = (c.g * rect->p1.c.g) / 255;
                 c.b = (c.b * rect->p1.c.b) / 255;
                 screen->buffer->col[x][y] = convCol<screenColType>(c);
-                v2 += dvDy;
+                v += dvDy;
             }
-            u2 += duDx;
+            u += duDx;
         }
     }
 }
@@ -390,7 +395,7 @@ void Softraster::renderRectTex(renderData_t<screenColType, texColType>* renderDa
 template<typename screenColType, typename texColType>
 void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect)
 {
-    Serial.println("renderRectTexBlend");
+    // Serial.println("renderRectTexBlend");
     const screen_t<screenColType>* screen = renderData->screen;
     const texture_t<texColType>* tex = renderData->texture;
     const ImVec4& clipRect = renderData->clipRect;
@@ -418,34 +423,42 @@ void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* ren
     screen->clip->x2 = (endx > screen->clip->x2 || screen->clip->x2 == -1 ? endx-1 : screen->clip->x2);
     screen->clip->y2 = (endy > screen->clip->y2 || screen->clip->y2 == -1 ? endy-1 : screen->clip->y2);
 
-    const float duDx = (rect->p2.u - rect->p1.u) / (float)(rect->p2.x - rect->p1.x);
-    const float dvDy = (rect->p2.v - rect->p1.v) / (float)(rect->p2.y - rect->p1.y);
-
-    const float startu = rect->p1.u + (duDx * (float)(rect->p1.x - minclipx < 0 ? minclipx + rect->p1.x : 0));
-    const float startv = rect->p1.v + (dvDy * (float)(rect->p1.v - minclipx < 0 ? minclipx + rect->p1.v : 0));
-
     #ifdef TEXTURE_MODE_CLAMP
-    position_t u = (position_t)((startu * tex->w) + 0.5f);
-    position_t v = (position_t)((startv * tex->h) + 0.5f);
-    if (u < 0) u = 0;
-    else if (u > tex->w) u = tex->w - 1;
-    if (v < 0) v = 0;
-    else if (v > tex->h) v = tex->h - 1;
+    position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f);
+    position_t p1v = (position_t)((rect->p1.v * tex->h) + 0.5f);
+    position_t p2u = (position_t)((rect->p2.u * tex->w) + 0.5f);
+    position_t p2v = (position_t)((rect->p2.v * tex->h) + 0.5f);
+    if (p1u < 0) p1u = 0;
+    else if (p1u > tex->w) p1u = tex->w - 1;
+    if (p1v < 0) p1v = 0;
+    else if (p1v > tex->h) p1v = tex->h - 1;
+    if (p2u < 0) p2u = 0;
+    else if (p2u > tex->w) p2u = tex->w - 1;
+    if (p2v < 0) p2v = 0;
+    else if (p2v > tex->h) p2v = tex->h - 1;
     #else
-    position_t u = (position_t)((startu * tex->w) + 0.5f) % tex->w; 
-    position_t v = (position_t)((startv * tex->h) + 0.5f) % tex->h;
+    position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f) % tex->w; 
+    position_t p1v = (position_t)((rect->p1.v * tex->h) + 0.5f) % tex->h;
+    position_t p2u = (position_t)((rect->p2.u * tex->w) + 0.5f) % tex->w; 
+    position_t p2v = (position_t)((rect->p2.v * tex->h) + 0.5f) % tex->h;
     #endif
+
+    const float duDx = (float)(p2u - p1u) / (float)(rect->p2.x - rect->p1.x);
+    const float dvDy = (float)(p2v - p1v) / (float)(rect->p2.y - rect->p1.y);
+
+    const float startu = p1u + (duDx * (float)(startx - rect->p1.x > 0 ? startx - rect->p1.x : 0));
+    const float startv = p1v + (dvDy * (float)(starty - rect->p1.y > 0 ? starty - rect->p1.y : 0));
 
     bool blit = (((position_t)(duDx + 0.5f) == 1) && ((position_t)(dvDy + 0.5f) == 1));
 
     if (blit)
     {
-        position_t u2 = u - startx, v2 = v - starty;
+        position_t u = startu - startx, v = startv - starty;
         for (position_t x = startx; x < endx; x++)
         {
             for (position_t y = starty; y < endy; y++)
             {
-                color32_t c = convCol<color32_t>(tex->col[x+u2][y+v2]);
+                color32_t c = convCol<color32_t>(tex->col[u+x][v+y]);
                 if (c.a == 0) continue;
                 c.r = (c.r * rect->p1.c.r) / 255;
                 c.g = (c.g * rect->p1.c.g) / 255;
@@ -463,12 +476,12 @@ void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* ren
     }
     else
     {
-        float u2 = u, v2 = v;
+        float u = startu, v = startv;
         for (position_t x = startx; x < endx; x++)
         {
             for (position_t y = starty; y < endy; y++)
             {
-                color32_t c = convCol<color32_t>(tex->col[(position_t)(u2+0.5f)][(position_t)(v2+0.5f)]);
+                color32_t c = convCol<color32_t>(tex->col[(position_t)(u+0.5f)][(position_t)(v+0.5f)]);
                 if (c.a == 0) continue;
                 c.r = (c.r * rect->p1.c.r) / 255;
                 c.g = (c.g * rect->p1.c.g) / 255;
@@ -481,9 +494,9 @@ void Softraster::renderRectTexBlend(renderData_t<screenColType, texColType>* ren
                     c.b = lerp(prev.b, c.b, c.a);
                 }
                 screen->buffer->col[x][y] = convCol<screenColType>(c);
-                v2 += dvDy;
+                v += dvDy;
             }
-            u2 += duDx;
+            u += duDx;
         }
     }
 }
@@ -497,10 +510,10 @@ inline void swap(T* tri1, T* tri2)
     memcpy(tri2, &temp, sizeof(T));
 }
 
-template<typename screenColType>
-void Softraster::renderTri(renderData_t<screenColType, void>* renderData, triangle_t* tri)
+template<typename screenColType, typename texColType>
+void Softraster::renderTri(renderData_t<screenColType, texColType>* renderData, triangle_t* tri)
 {
-    Serial.println("renderTri");
+    // Serial.println("renderTri");
     tri->p1.x = (position_t)(tri->p1.x + 0.5f);
     tri->p2.x = (position_t)(tri->p2.x + 0.5f);
     tri->p3.x = (position_t)(tri->p3.x + 0.5f);
@@ -627,10 +640,10 @@ void Softraster::renderTri(renderData_t<screenColType, void>* renderData, triang
     }
 }
 
-template<typename screenColType>
-void Softraster::renderTriBlend(renderData_t<screenColType, void>* renderData, triangle_t* tri)
+template<typename screenColType, typename texColType>
+void Softraster::renderTriBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri)
 {
-    Serial.println("renderTriBlend");
+    // Serial.println("renderTriBlend");
     tri->p1.x = (position_t)(tri->p1.x + 0.5f);
     tri->p2.x = (position_t)(tri->p2.x + 0.5f);
     tri->p3.x = (position_t)(tri->p3.x + 0.5f);
@@ -795,7 +808,7 @@ void Softraster::renderTriBlend(renderData_t<screenColType, void>* renderData, t
 template<typename screenColType, typename texColType>
 void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderData, triangle_t* tri)
 {
-    Serial.println("renderTriTex");
+    // Serial.println("renderTriTex");
     tri->p1.x = (position_t)(tri->p1.x + 0.5f);
     tri->p2.x = (position_t)(tri->p2.x + 0.5f);
     tri->p3.x = (position_t)(tri->p3.x + 0.5f);
@@ -1016,7 +1029,7 @@ void Softraster::renderTriTex(renderData_t<screenColType, texColType>* renderDat
 template<typename screenColType, typename texColType>
 void Softraster::renderTriTexBlend(renderData_t<screenColType, texColType>* renderData, triangle_t* tri)
 {
-    Serial.println("renderTriTexBlend");
+    // Serial.println("renderTriTexBlend");
     tri->p1.x = (position_t)(tri->p1.x + 0.5f);
     tri->p2.x = (position_t)(tri->p2.x + 0.5f);
     tri->p3.x = (position_t)(tri->p3.x + 0.5f);
@@ -1330,301 +1343,254 @@ void Softraster::renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* 
             else
             {
                 void_texture_t* texVdPtr = (void_texture_t*)pcmd->TextureId;
-                bool noTex = texVdPtr == NULL;
-                void* renderData;
-                if (noTex)
+                if(texVdPtr == NULL)
                 {
-                    renderData = (void*)(new renderData_t<screenColType, void*>(
+                    renderData_t<screenColType, color8_t> renderData(
                         screen,
                         NULL,
                         pcmd->ClipRect
-                    ));
-                }
-                else
-                {
-                    switch(texVdPtr->mode)
-                    {
-                        case COLOR8:
-                            renderData = (void*)(new renderData_t<screenColType, color8_t>(
-                                screen,
-                                (texture_t<color8_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            ));
-                            break;
-                        case COLOR16:
-                            renderData = (void*)(new renderData_t<screenColType, color16_t>(
-                                screen,
-                                (texture_t<color16_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            ));
-                            break;
-                        case COLOR24:
-                            renderData = (void*)(new renderData_t<screenColType, color24_t>(
-                                screen,
-                                (texture_t<color24_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            ));
-                            break;
-                        case COLOR32:
-                            renderData = (void*)(new renderData_t<screenColType, color32_t>(
-                                screen,
-                                (texture_t<color32_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            ));
-                            break;
-                        default: 
-                            renderData = (void*)(new renderData_t<screenColType, void*>(
-                                screen,
-                                NULL,
-                                pcmd->ClipRect
-                            ));
-                            noTex = true;
-                            break;
-                    }
-                }
-
-                for(unsigned int i = 0; i < pcmd->ElemCount; i += 3)
-                {
-                    const ImDrawVert* verts[] =
-                    {
-                        &vtx_buffer[idx_buffer[i]],
-                        &vtx_buffer[idx_buffer[i+1]],
-                        &vtx_buffer[idx_buffer[i+2]]
-                    };
-
-                    Serial.print("X: "); Serial.print(verts[0]->pos.x, HEX);
-                    Serial.print(" Y: "); Serial.println(verts[0]->pos.y, HEX);
-
-                    if (i < pcmd->ElemCount - 3)
-                    {
-                        ImVec2 tlpos = verts[0]->pos;
-                        ImVec2 brpos = verts[0]->pos;
-                        ImVec2 tluv = verts[0]->uv;
-                        ImVec2 bruv = verts[0]->uv;
-                        for (int v = 1; v < 3; v++)
-                        {
-                            if (verts[v]->pos.x < tlpos.x)
-                            {
-                                tlpos.x = verts[v]->pos.x;
-                                tluv.x = verts[v]->uv.x;
-                            }
-                            else if (verts[v]->pos.x > brpos.x)
-                            {
-                                brpos.x = verts[v]->pos.x;
-                                bruv.x = verts[v]->uv.x;
-                            }
-                            if (verts[v]->pos.y < tlpos.y)
-                            {
-                                tlpos.y = verts[v]->pos.y;
-                                tluv.y = verts[v]->uv.y;
-                            }
-                            else if (verts[v]->pos.y > brpos.y)
-                            {
-                                brpos.y = verts[v]->pos.y;
-                                bruv.y = verts[v]->uv.y;
-                            }
-                        }
-
-                        const ImDrawVert* nextVerts[] =
-                        {
-                            &vtx_buffer[idx_buffer[i+3]],
-                            &vtx_buffer[idx_buffer[i+4]],
-                            &vtx_buffer[idx_buffer[i+5]]
-                        };
-
-                        bool isRect = true;
-                        for (int v = 0; v < 3; v++)
-                        {
-                            if (((nextVerts[v]->pos.x != tlpos.x) && (nextVerts[v]->pos.x != brpos.x)) ||
-                                ((nextVerts[v]->pos.y != tlpos.y) && (nextVerts[v]->pos.y != brpos.y)) ||
-                                ((nextVerts[v]->uv.x != tluv.x) && (nextVerts[v]->uv.x != bruv.x)) ||
-                                ((nextVerts[v]->uv.y != tluv.y) && (nextVerts[v]->uv.y != bruv.y)))
-                            {
-                                isRect = false;
-                                break;
-                            }
-                        }
-
-                        if (isRect)
-                        {
-                            rectangle_t rect;
-                            rect.p1.x = tlpos.x;
-                            rect.p1.y = tlpos.y;
-                            rect.p2.x = brpos.x;
-                            rect.p2.y = brpos.y;
-                            rect.p1.u = tluv.x;
-                            rect.p1.v = tluv.y;
-                            rect.p2.u = bruv.x;
-                            rect.p2.v = bruv.y;
-                            rect.p1.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
-                            rect.p2.c.r = rect.p1.c.r;
-                            rect.p1.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
-                            rect.p2.c.g = rect.p1.c.g;
-                            rect.p1.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
-                            rect.p2.c.b = rect.p1.c.b;
-                            rect.p1.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
-                            rect.p2.c.a = rect.p1.c.b;
-                            // Serial.println(noTex, HEX);
-                            // Serial.println(texVdPtr->mode, HEX);
-                            // Serial.println(rect.p1.u);
-                            // Serial.println(rect.p2.u);
-                            // Serial.println(rect.p1.u == rect.p2.u, HEX);
-                            bool noUV = noTex || ((rect.p1.u == rect.p2.u) && (rect.p1.v == rect.p2.v));
-                            bool flatCol = rect.p1.c == rect.p1.c;
-                            if (noUV)
-                            {
-                                if (flatCol) {
-                                    renderRect((renderData_t<screenColType, void>*)renderData, &rect);
-                                } else {
-                                    renderRectBlend((renderData_t<screenColType, void>*)renderData, &rect);
-                                }
-                            }
-                            else switch(texVdPtr->mode)
-                            {
-                                case COLOR8:
-                                    if (flatCol) {
-                                        renderRectTex((renderData_t<screenColType, color8_t>*)renderData, &rect);
-                                    } else {
-                                        renderRectTexBlend((renderData_t<screenColType, color8_t>*)renderData, &rect);
-                                    }
-                                    break;
-                                case COLOR16:
-                                    if (flatCol) {
-                                        renderRectTex((renderData_t<screenColType, color16_t>*)renderData, &rect);
-                                    } else {
-                                        renderRectTexBlend((renderData_t<screenColType, color16_t>*)renderData, &rect);
-                                    }
-                                    break;
-                                case COLOR24:
-                                    if (flatCol) {
-                                        renderRectTex((renderData_t<screenColType, color24_t>*)renderData, &rect);
-                                    } else {
-                                        renderRectTexBlend((renderData_t<screenColType, color24_t>*)renderData, &rect);
-                                    }
-                                    break;
-                                case COLOR32:
-                                    if (flatCol) {
-                                        renderRectTex((renderData_t<screenColType, color32_t>*)renderData, &rect);
-                                    } else {
-                                        renderRectTexBlend((renderData_t<screenColType, color32_t>*)renderData, &rect);
-                                    }
-                                    break;
-                                default:
-                                    if (flatCol) {
-                                        renderRect((renderData_t<screenColType, void>*)renderData, &rect);
-                                    } else {
-                                        renderRectBlend((renderData_t<screenColType, void>*)renderData, &rect);
-                                    }
-                                    break;
-                            }
-                            //renderRect(&renderData, &rect);
-
-                            i += 3;
-                            continue;
-                        }
-                    }
-
-                    triangle_t tri;
-                    tri.p1.x = verts[0]->pos.x;
-                    tri.p1.y = verts[0]->pos.y;
-                    tri.p1.u = verts[0]->uv.x;
-                    tri.p1.v = verts[0]->uv.y;
-                    tri.p1.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
-                    tri.p1.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
-                    tri.p1.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
-                    tri.p1.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
-                    tri.p2.x = verts[1]->pos.x;
-                    tri.p2.y = verts[1]->pos.y;
-                    tri.p2.u = verts[1]->uv.x;
-                    tri.p2.v = verts[1]->uv.y;
-                    tri.p2.c.r = (verts[1]->col >> IM_COL32_R_SHIFT) & 0xFF;
-                    tri.p2.c.g = (verts[1]->col >> IM_COL32_G_SHIFT) & 0xFF;
-                    tri.p2.c.b = (verts[1]->col >> IM_COL32_B_SHIFT) & 0xFF;
-                    tri.p2.c.a = (verts[1]->col >> IM_COL32_A_SHIFT) & 0xFF;
-                    tri.p3.x = verts[2]->pos.x;
-                    tri.p3.y = verts[2]->pos.y;
-                    tri.p3.u = verts[2]->uv.x;
-                    tri.p3.v = verts[2]->uv.y;
-                    tri.p3.c.r = (verts[2]->col >> IM_COL32_R_SHIFT) & 0xFF;
-                    tri.p3.c.g = (verts[2]->col >> IM_COL32_G_SHIFT) & 0xFF;
-                    tri.p3.c.b = (verts[2]->col >> IM_COL32_B_SHIFT) & 0xFF;
-                    tri.p3.c.a = (verts[2]->col >> IM_COL32_A_SHIFT) & 0xFF;
-                    bool noUV = noTex || ((tri.p1.u == tri.p2.u) && (tri.p1.u == tri.p3.u) && 
-                        (tri.p1.v == tri.p2.v) && (tri.p1.v == tri.p3.u));
-                    bool flatCol = (tri.p1.c == tri.p1.c) && (tri.p1.c == tri.p3.c);
-                    if (noUV)
-                    { 
-                        if (flatCol) {
-                            renderTri((renderData_t<screenColType, void>*)renderData, &tri);
-                        } else {
-                            renderTriBlend((renderData_t<screenColType, void>*)renderData, &tri);
-                        }
-                    }
-                    else switch(texVdPtr->mode)
-                    {
-                        case COLOR8:
-                            if (flatCol) {
-                                renderTriTex((renderData_t<screenColType, color8_t>*)renderData, &tri);
-                            } else {
-                                renderTriTexBlend((renderData_t<screenColType, color8_t>*)renderData, &tri);
-                            }
-                            break;
-                        case COLOR16:
-                            if (flatCol) {
-                                renderTriTex((renderData_t<screenColType, color16_t>*)renderData, &tri);
-                            } else {
-                                renderTriTexBlend((renderData_t<screenColType, color16_t>*)renderData, &tri);
-                            }
-                            break;
-                        case COLOR24:
-                            if (flatCol) {
-                                renderTriTex((renderData_t<screenColType, color24_t>*)renderData, &tri);
-                            } else {
-                                renderTriTexBlend((renderData_t<screenColType, color24_t>*)renderData, &tri);
-                            }
-                            break;
-                        case COLOR32:
-                            if (flatCol) {
-                                renderTriTex((renderData_t<screenColType, color32_t>*)renderData, &tri);
-                            } else {
-                                renderTriTexBlend((renderData_t<screenColType, color32_t>*)renderData, &tri);
-                            }
-                            break;
-                        default: 
-                            if (flatCol) {
-                                renderTri((renderData_t<screenColType, void>*)renderData, &tri);
-                            } else {
-                                renderTriBlend((renderData_t<screenColType, void>*)renderData, &tri);
-                            }
-                            break;
-                    }
-                    //renderTri(&renderData, &tri);
-                }
-                
-                if (noTex)
-                {
-                    delete (renderData_t<screenColType, void>*)renderData;
+                    );
+                    renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
                 }
                 else switch(texVdPtr->mode)
                 {
-                    case COLOR8:
-                        delete (renderData_t<screenColType, color8_t>*)renderData;
+                    case COLOR8: {   
+                            renderData_t<screenColType, color8_t> renderData(
+                                screen,
+                                (texture_t<color8_t>*)texVdPtr->texture,
+                                pcmd->ClipRect
+                            );
+                            renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
+                        }
                         break;
-                    case COLOR16:
-                        delete (renderData_t<screenColType, color16_t>*)renderData;
+                    case COLOR16: {   
+                            renderData_t<screenColType, color16_t> renderData(
+                                screen,
+                                (texture_t<color16_t>*)texVdPtr->texture,
+                                pcmd->ClipRect
+                            );
+                            renderCommand<screenColType, color16_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
+                        }
                         break;
-                    case COLOR24:
-                        delete (renderData_t<screenColType, color24_t>*)renderData;
+                    case COLOR24: {   
+                            renderData_t<screenColType, color24_t> renderData(
+                                screen,
+                                (texture_t<color24_t>*)texVdPtr->texture,
+                                pcmd->ClipRect
+                            );
+                            renderCommand<screenColType, color24_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
+                        }
                         break;
-                    case COLOR32:
-                        delete (renderData_t<screenColType, color32_t>*)renderData;
+                    case COLOR32: {   
+                            renderData_t<screenColType, color32_t> renderData(
+                                screen,
+                                (texture_t<color32_t>*)texVdPtr->texture,
+                                pcmd->ClipRect
+                            );
+                            renderCommand<screenColType, color32_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
+                        }
                         break;
-                    default:
-                        delete (renderData_t<screenColType, void>*)renderData;
+                    default: {   
+                            renderData_t<screenColType, color8_t> renderData(
+                                screen,
+                                NULL,
+                                pcmd->ClipRect
+                            );
+                            renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
+                        }
                         break;
                 }
             }
             idx_buffer += pcmd->ElemCount;
+        }
+    }
+}
+
+template<typename screenColType, typename texColType>
+void Softraster::renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* idx_buffer, const ImDrawCmd* pcmd, renderData_t<screenColType, texColType>* renderData)
+{
+    for(unsigned int i = 0; i < pcmd->ElemCount; i += 3)
+    {
+        const ImDrawVert* verts[] =
+        {
+            &vtx_buffer[idx_buffer[i]],
+            &vtx_buffer[idx_buffer[i+1]],
+            &vtx_buffer[idx_buffer[i+2]]
+        };
+
+        //Serial.print("X: "); Serial.print(verts[0]->pos.x, HEX);
+        //Serial.print(" Y: "); Serial.println(verts[0]->pos.y, HEX);
+
+        if (i < pcmd->ElemCount - 3)
+        {
+            ImVec2 tlpos = verts[0]->pos;
+            ImVec2 brpos = verts[0]->pos;
+            ImVec2 tluv = verts[0]->uv;
+            ImVec2 bruv = verts[0]->uv;
+            for (int v = 1; v < 3; v++)
+            {
+                if (verts[v]->pos.x < tlpos.x)
+                {
+                    tlpos.x = verts[v]->pos.x;
+                    tluv.x = verts[v]->uv.x;
+                }
+                else if (verts[v]->pos.x > brpos.x)
+                {
+                    brpos.x = verts[v]->pos.x;
+                    bruv.x = verts[v]->uv.x;
+                }
+                if (verts[v]->pos.y < tlpos.y)
+                {
+                    tlpos.y = verts[v]->pos.y;
+                    tluv.y = verts[v]->uv.y;
+                }
+                else if (verts[v]->pos.y > brpos.y)
+                {
+                    brpos.y = verts[v]->pos.y;
+                    bruv.y = verts[v]->uv.y;
+                }
+            }
+
+            const ImDrawVert* nextVerts[] =
+            {
+                &vtx_buffer[idx_buffer[i+3]],
+                &vtx_buffer[idx_buffer[i+4]],
+                &vtx_buffer[idx_buffer[i+5]]
+            };
+
+            bool isRect = true;
+            for (int v = 0; v < 3; v++)
+            {
+                if (((nextVerts[v]->pos.x != tlpos.x) && (nextVerts[v]->pos.x != brpos.x)) ||
+                    ((nextVerts[v]->pos.y != tlpos.y) && (nextVerts[v]->pos.y != brpos.y)) ||
+                    ((nextVerts[v]->uv.x != tluv.x) && (nextVerts[v]->uv.x != bruv.x)) ||
+                    ((nextVerts[v]->uv.y != tluv.y) && (nextVerts[v]->uv.y != bruv.y)))
+                {
+                    isRect = false;
+                    break;
+                }
+            }
+
+            if (isRect)
+            {
+                rectangle_t rect;
+                rect.p1.x = tlpos.x;
+                rect.p1.y = tlpos.y;
+                rect.p2.x = brpos.x;
+                rect.p2.y = brpos.y;
+                rect.p1.u = tluv.x;
+                rect.p1.v = tluv.y;
+                rect.p2.u = bruv.x;
+                rect.p2.v = bruv.y;
+                rect.p1.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
+                rect.p2.c.r = rect.p1.c.r;
+                rect.p1.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
+                rect.p2.c.g = rect.p1.c.g;
+                rect.p1.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
+                rect.p2.c.b = rect.p1.c.b;
+                rect.p1.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
+                rect.p2.c.a = rect.p1.c.a;
+                bool noUV = renderData->texture == NULL || 
+                    ((rect.p1.u == rect.p2.u) && (rect.p1.v == rect.p2.v));
+                bool flatCol = rect.p1.c == rect.p2.c;
+                if (noUV)
+                {
+                    if (flatCol) {
+                        renderRect(renderData, &rect);
+                    } else {
+                        renderRectBlend(renderData, &rect);
+                    }
+                }
+                else 
+                {
+                    if (flatCol) {
+                        renderRectTex(renderData, &rect);
+                    } else {
+                        renderRectTexBlend(renderData, &rect);
+                    }
+                }
+                i += 3;
+                continue;
+            }
+        }
+
+        triangle_t tri;
+        tri.p1.x = verts[0]->pos.x;
+        tri.p1.y = verts[0]->pos.y;
+        tri.p1.u = verts[0]->uv.x;
+        tri.p1.v = verts[0]->uv.y;
+        tri.p1.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
+        tri.p1.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
+        tri.p1.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
+        tri.p1.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
+        tri.p2.x = verts[1]->pos.x;
+        tri.p2.y = verts[1]->pos.y;
+        tri.p2.u = verts[1]->uv.x;
+        tri.p2.v = verts[1]->uv.y;
+        tri.p2.c.r = (verts[1]->col >> IM_COL32_R_SHIFT) & 0xFF;
+        tri.p2.c.g = (verts[1]->col >> IM_COL32_G_SHIFT) & 0xFF;
+        tri.p2.c.b = (verts[1]->col >> IM_COL32_B_SHIFT) & 0xFF;
+        tri.p2.c.a = (verts[1]->col >> IM_COL32_A_SHIFT) & 0xFF;
+        tri.p3.x = verts[2]->pos.x;
+        tri.p3.y = verts[2]->pos.y;
+        tri.p3.u = verts[2]->uv.x;
+        tri.p3.v = verts[2]->uv.y;
+        tri.p3.c.r = (verts[2]->col >> IM_COL32_R_SHIFT) & 0xFF;
+        tri.p3.c.g = (verts[2]->col >> IM_COL32_G_SHIFT) & 0xFF;
+        tri.p3.c.b = (verts[2]->col >> IM_COL32_B_SHIFT) & 0xFF;
+        tri.p3.c.a = (verts[2]->col >> IM_COL32_A_SHIFT) & 0xFF;
+        bool noUV = renderData->texture == NULL || (
+            (tri.p1.u == tri.p2.u) && (tri.p1.u == tri.p3.u) &&
+            (tri.p1.v == tri.p2.v) && (tri.p1.v == tri.p3.v));
+        // if (!noUV)
+        // {
+        //     const texture_t<texColType>* tex = renderData->texture;
+        //     #ifdef TEXTURE_MODE_CLAMP
+        //     position_t p1u = (position_t)((tri.p1.u * tex->w) + 0.5f);
+        //     position_t p1v = (position_t)((tri.p1.v * tex->h) + 0.5f);
+        //     position_t p2u = (position_t)((tri.p2.u * tex->w) + 0.5f);
+        //     position_t p2v = (position_t)((tri.p2.v * tex->h) + 0.5f);
+        //     position_t p3u = (position_t)((tri.p2.u * tex->w) + 0.5f);
+        //     position_t p3v = (position_t)((tri.p2.v * tex->h) + 0.5f);
+        //     if (p1u < 0) p1u = 0;
+        //     else if (p1u > tex->w) p1u = tex->w - 1;
+        //     if (p1v < 0) p1v = 0;
+        //     else if (p1v > tex->h) p1v = tex->h - 1;
+        //     if (p2u < 0) p2u = 0;
+        //     else if (p2u > tex->w) p2u = tex->w - 1;
+        //     if (p2v < 0) p2v = 0;
+        //     else if (p2v > tex->h) p2v = tex->h - 1;
+        //     if (p3u < 0) p3u = 0;
+        //     else if (p3u > tex->w) p3u = tex->w - 1;
+        //     if (p3v < 0) p3v = 0;
+        //     else if (p3v > tex->h) p3v = tex->h - 1;
+        //     #else
+        //     position_t p1u = (position_t)((tri.p1.u * tex->w) + 0.5f) % tex->w; 
+        //     position_t p1v = (position_t)((tri.p1.v * tex->h) + 0.5f) % tex->h;
+        //     position_t p2u = (position_t)((tri.p2.u * tex->w) + 0.5f) % tex->w; 
+        //     position_t p2v = (position_t)((tri.p2.v * tex->h) + 0.5f) % tex->h;
+        //     position_t p3u = (position_t)((tri.p3.u * tex->w) + 0.5f) % tex->w; 
+        //     position_t p3v = (position_t)((tri.p3.v * tex->h) + 0.5f) % tex->h;
+        //     #endif
+        //     noUV = ((p1u == p2u) && (p1u == p3u) && (p1v == p2v) && (p1v == p3v));
+        // }
+        //Serial.println(noUV);
+        bool flatCol = (tri.p1.c == tri.p2.c) && (tri.p1.c == tri.p3.c);
+        if (noUV)
+        {
+            if (flatCol) {
+                //renderTri(renderData, &tri);
+            } else {
+                //renderTriBlend(renderData, &tri);
+            }
+        }
+        else 
+        {
+            if (flatCol) {
+                //renderTriTex(renderData, &tri);
+            } else {
+                //renderTriTexBlend(renderData, &tri);
+            }
         }
     }
 }
