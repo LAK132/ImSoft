@@ -32,8 +32,8 @@ texture_t<color16_t> screenBuffer;
 texture_t<color8_t> fontAtlas;
 void_texture_t fontAtlasVdPtr;
 
-TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTSDI, TFTCLK, TFTLED, 128);
-//SPIClass tftspi(HSPI);
+TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTLED, 128);
+SPIClass tftspi(HSPI);
 
 void updateScreen()
 {
@@ -98,10 +98,7 @@ void setup()
 {
     Serial.begin(115200);
 
-    //SPI.setClockDivider(SPI_CLOCK_DIV2);
-    //SPI.begin();
-    //tftspi.begin(TFTCLK, HSPIMISO, TFTSDI, TFTCS);
-    tft.begin(/*tftspi*/);
+    tft.begin(tftspi);
     tft.setFont(Terminal6x8);
     tft.setOrientation(3);
     digitalWrite(TFTLED, HIGH);
