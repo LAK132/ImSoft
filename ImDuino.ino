@@ -44,27 +44,6 @@ void updateScreen()
 
     if (x1 == -1 || y1 == -1 || x2 == -1 || y2 == -1) return;
 
-    //upstream master 1.3.4 drawPixel: 3931ms
-    //upstream master 1.3.5 drawPixel: 1570ms
-    //local faster 1.3.4 drawBitmap: 248ms
-    //local faster 1.3.5 drawBitmap: 249ms
-    //local testing 1.3.4 custom draw: 250ms
-    //local testing 1.3.5 custom draw: 250ms
-
-    // tft.startWrite(x1, y1, x2, y2); //custom draw
-    // // for (int16_t x = x2; x >= x1; x--) //1.3.4
-    // for (int16_t x = x1; x <= x2; x++) //1.3.5
-    // {
-    //     for (int16_t y = y1; y <= y2; y++)
-    //     {
-    //         uint16_t& col = screenBuffer.col[x][y];
-    //         tft._spiWrite(col>>8);
-    //         tft._spiWrite(col);
-    //         // tft.drawPixel(x, y, screenBuffer.col[x][y]);
-    //     }
-    // }
-    // tft.endWrite(); //custom draw
-
     tft.drawBitmap(x1, y1, screenBuffer.col, (x2-x1)+1, (y2-y1)+1);
 
     #ifdef CLIP_SCREEN
@@ -108,7 +87,6 @@ void setup()
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize.x = TFTX;
     io.DisplaySize.y = TFTY;
-    //io.RenderDrawListsFn = renderFunc; //obsolete
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.AntiAliasedLines = false;
@@ -121,7 +99,7 @@ void setup()
 
     uint8_t* pixels;
     int width, height;
-    io.Fonts->GetTexDataAsAlpha8(&pixels, &(width), &(height));
+    io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
     fontAtlas.w = width;
     fontAtlas.h = height;
 
@@ -198,22 +176,17 @@ void loop()
 
     deltaTime -= (drawTime + rasterTime);
 
-    //Serial.print("Draw time: "); Serial.println(drawTime);
-    ImGui::Text("Draw time %f ms", drawTime / 1.0f);
+    ImGui::Text("SPI screen draw time %f ms", drawTime / 1.0f);
 
-    //Serial.print("Raster time: "); Serial.println(rasterTime);
     ImGui::Text("Raster time %f ms", rasterTime / 1.0f);
 
-    //Serial.print("Remaining time: "); Serial.println(deltaTime);
     ImGui::Text("Remaining time %f ms", deltaTime);
 
-    ImGui::SliderFloat("float3", &f, 0.0f, 1.0f);
+    ImGui::SliderFloat("SliderFloat", &f, 0.0f, 1.0f);
 
     screenBuffer.clear();
 
     ImGui::Render();
     renderFunc(ImGui::GetDrawData());
-    // Serial.println("fin bitconnnnnnnnnneeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeect");
-    //delay(5000);
 }
 
