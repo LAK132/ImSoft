@@ -30,7 +30,6 @@ screen_t<color16_t> screen;
 clip_t screenClip;
 texture_t<color16_t> screenBuffer;
 texture_t<color8_t> fontAtlas;
-void_texture_t fontAtlasVdPtr;
 
 TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTLED, 128);
 SPIClass tftspi(HSPI);
@@ -44,7 +43,7 @@ void updateScreen()
 
     if (x1 == -1 || y1 == -1 || x2 == -1 || y2 == -1) return;
 
-    tft.drawBitmap(x1, y1, screenBuffer.col, (x2-x1)+1, (y2-y1)+1);
+    tft.drawBitmap(x1, y1, screenBuffer.pixels, (x2-x1)+1, (y2-y1)+1);
 
     #ifdef CLIP_SCREEN
     screenClip.x1 = -1;
@@ -104,16 +103,42 @@ void setup()
     fontAtlas.h = height;
 
     #ifdef PRINT_ATLAS
-    Serial.print("{");
-    for(int x = 0; x < fontAtlas.tex8.w; x++)
+    Serial.println("{");
+    int depth = 0;
+    for(int y = 0; y < fontAtlas.h; y++)
     {
-        for(int y = 0; y < fontAtlas.tex8.h; y++)
+        for(int x = 0; x < fontAtlas.w; x++)
         {
             Serial.print("0x");
-            Serial.print(pixels[x + y*fontAtlas.tex8.w], HEX);
+            char c = pixels[x + y*fontAtlas.w] >> 4;
+            if (c < 0xA)
+            {
+                c += '0';
+            }
+            else
+            {
+                c -= 0xA;
+                c += 'A';
+            }
+            Serial.print(c);
+            c = pixels[x + y*fontAtlas.w] & 0xF;
+            if (c < 0xA)
+            {
+                c += '0';
+            }
+            else
+            {
+                c -= 0xA;
+                c += 'A';
+            }
+            Serial.print(c);
             Serial.print(", ");
+            if (depth++ > 16)
+            {
+                depth = 0;
+                Serial.println("");
+            }
         }
-        Serial.println("");
     }
     Serial.print("}");
     #endif
@@ -121,16 +146,9 @@ void setup()
     io.Fonts->ClearInputData();
     io.Fonts->ClearTexData();    //ImGui::MemFree(pixels);
 
-    fontAtlas.pre_init();
-    for(size_t i = 0; i < fontAtlas.w; i++)
-    {
-        fontAtlas.col[i] = (color8_t*)&(fontAtlasPixels[i * fontAtlas.h]);
-    }
+    fontAtlas.init(width, height, (color8_t*)fontAtlasPixels);
 
-    fontAtlasVdPtr.texture = (void*)&fontAtlas;
-    fontAtlasVdPtr.mode = fontAtlas.colorMode;
-
-    io.Fonts->TexID = &fontAtlasVdPtr;
+    io.Fonts->TexID = &fontAtlas;
 
     screenBuffer.init(TFTX, TFTY);
 

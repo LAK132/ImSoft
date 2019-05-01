@@ -222,64 +222,64 @@ struct rectangle_t
 template <typename COL_T>
 struct texture_t
 {
-    bool isSetup = false;
-    uint8_t colorMode = 0;
+    bool needFree;
     size_t w, h;
-    COL_T** col = NULL;
+    COL_T* pixels;
+
     void clear()
     {
-        for(int i = 0; i < w; i++)
-        {
-            for(int j = 0; j < h; j++)
-            {
-                memset(&(col[i][j]), 0x0, colorMode);
-            }
-        }
-    }
-    void pre_init()
-    {
-        colorMode = sizeof(COL_T);
-        col = (COL_T**)malloc(w*sizeof(COL_T*));
+        memset(pixels, 0, w * h * sizeof(COL_T));
     }
     void init(size_t x, size_t y)
     {
         w = x;
         h = y;
-        pre_init();
-        for (size_t i = 0; i < w; i++)
-        {
-            col[i] = (COL_T*)malloc(h*sizeof(COL_T));
-        }
-        isSetup = true;
+        pixels = (COL_T*)malloc(w*h*sizeof(COL_T));
+        needFree = true;
     }
-    texture_t() : col(NULL), isSetup(false){}
+    void init(size_t x, size_t y, COL_T* data)
+    {
+        if (needFree)
+            free(pixels);
+        w = x;
+        h = y;
+        pixels = data;
+        needFree = false;
+    }
+    texture_t() : pixels(nullptr), needFree(false){}
     texture_t(size_t x, size_t y)
     {
         init(x, y);
     }
+    texture_t(size_t x, size_t y, COL_T* data)
+    {
+        init(x, y, data);
+    }
     ~texture_t()
     {
-        if (col != NULL && isSetup)
+        if (needFree)
         {
-            for (size_t i = 0; i < w; i++)
-            {
-                if (col[i] != NULL)
-                {
-                    free(col[i]);
-                    col[i] = NULL;
-                }
-            }
-            free(col);
-            col = NULL;
+            free(pixels);
+            pixels = nullptr;
         }
-        isSetup = false;
+        needFree = false;
     }
-};
-
-struct void_texture_t
-{
-    uint8_t mode;
-    void* texture;
+    COL_T &at(size_t x, size_t y)
+    {
+        return pixels[x + (w * y)];
+    }
+    const COL_T &at(size_t x, size_t y) const
+    {
+        return pixels[x + (w * y)];
+    }
+    COL_T &operator()(size_t x, size_t y)
+    {
+        return pixels[x + (w * y)];
+    }
+    const COL_T &operator()(size_t x, size_t y) const
+    {
+        return pixels[x + (w * y)];
+    }
 };
 
 template<typename colType>
@@ -591,19 +591,19 @@ void renderRect(renderData_t<screenColType, texColType>* renderData, rectangle_t
             {
                 for (position_t y = starty; y < endy; y++)
                 {
-                    color32_t c = convCol<color32_t>(tex->col[u+x][v+y]);
+                    color32_t c = convCol<color32_t>(tex->at(u+x, v+y));
                     if (c.a == 0) continue;
                     c.r = (c.r * rect->p1.c.r) / 255;
                     c.g = (c.g * rect->p1.c.g) / 255;
                     c.b = (c.b * rect->p1.c.b) / 255;
                     if (mode & render_t::BLEND && c.a != 255)
                     {
-                        color24_t prev = convCol<color24_t>(screen->buffer->col[x][y]);
+                        color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
                         c.r = lerp(prev.r, c.r, c.a);
                         c.g = lerp(prev.g, c.g, c.a);
                         c.b = lerp(prev.b, c.b, c.a);
                     }
-                    screen->buffer->col[x][y] = convCol<screenColType>(c);
+                    screen->buffer->at(x, y) = convCol<screenColType>(c);
                 }
             }
         }
@@ -614,19 +614,19 @@ void renderRect(renderData_t<screenColType, texColType>* renderData, rectangle_t
             {
                 for (position_t y = starty; y < endy; y++)
                 {
-                    color32_t c = convCol<color32_t>(tex->col[(position_t)(u+0.5f)][(position_t)(v+0.5f)]);
+                    color32_t c = convCol<color32_t>(tex->at((position_t)(u+0.5f), (position_t)(v+0.5f)));
                     if (c.a == 0) continue;
                     c.r = (c.r * rect->p1.c.r) / 255;
                     c.g = (c.g * rect->p1.c.g) / 255;
                     c.b = (c.b * rect->p1.c.b) / 255;
                     if (mode & render_t::BLEND && c.a != 255)
                     {
-                        color24_t prev = convCol<color24_t>(screen->buffer->col[x][y]);
+                        color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
                         c.r = lerp(prev.r, c.r, c.a);
                         c.g = lerp(prev.g, c.g, c.a);
                         c.b = lerp(prev.b, c.b, c.a);
                     }
-                    screen->buffer->col[x][y] = convCol<screenColType>(c);
+                    screen->buffer->at(x, y) = convCol<screenColType>(c);
                     v += dvDy;
                 }
                 u += duDx;
@@ -641,11 +641,11 @@ void renderRect(renderData_t<screenColType, texColType>* renderData, rectangle_t
             {
                 // could make a specialised lerp function for each color type
                 // to reduce the number of color conversions per pixel
-                color24_t prev = convCol<color24_t>(screen->buffer->col[x][y]);
+                color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
                 prev.r = lerp(prev.r, rect->p1.c.r, rect->p1.c.a);
                 prev.g = lerp(prev.g, rect->p1.c.g, rect->p1.c.a);
                 prev.b = lerp(prev.b, rect->p1.c.b, rect->p1.c.a);
-                screen->buffer->col[x][y] = convCol<screenColType>(prev);
+                screen->buffer->at(x, y) = convCol<screenColType>(prev);
             }
         }
     }
@@ -655,7 +655,7 @@ void renderRect(renderData_t<screenColType, texColType>* renderData, rectangle_t
         {
             for (position_t y = starty; y < endy; y++)
             {
-                screen->buffer->col[x][y] = convCol<screenColType>(rect->p1.c);
+                screen->buffer->at(x, y) = convCol<screenColType>(rect->p1.c);
             }
         }
     }
@@ -712,7 +712,7 @@ void renderTriCore(
                 #endif
                 if (mode & render_t::BLEND)
                 {
-                    color32_t c = convCol<color32_t>(tex->col[u][v]);
+                    color32_t c = convCol<color32_t>(tex->at(u, v));
                     if (!c.a || !col.a) { c.a = 0; continue; }
                     c.a = (c.a * col.a) / 255;
                     c.r = (c.r * col.r) / 255;
@@ -725,20 +725,20 @@ void renderTriCore(
                     }
                     else
                     {
-                        prev = convCol<color24_t>(screen->buffer->col[x][y]);
+                        prev = convCol<color24_t>(screen->buffer->at(x, y));
                         prev.r = lerp(prev.r, c.r, c.a);
                         prev.g = lerp(prev.g, c.g, c.a);
                         prev.b = lerp(prev.b, c.b, c.a);
                     }
-                    screen->buffer->col[x][y] = convCol<screenColType>(prev);
+                    screen->buffer->at(x, y) = convCol<screenColType>(prev);
                 }
                 else
                 {
-                    color24_t c = convCol<color24_t>(tex->col[u][v]);
+                    color24_t c = convCol<color24_t>(tex->at(u, v));
                     c.r = (c.r * col.r) / 255;
                     c.g = (c.g * col.g) / 255;
                     c.b = (c.b * col.b) / 255;
-                    screen->buffer->col[x][y] = convCol<screenColType>(c);
+                    screen->buffer->at(x, y) = convCol<screenColType>(c);
                 }
             }
             else if (mode & render_t::BLEND)
@@ -746,15 +746,15 @@ void renderTriCore(
                 // pixel_t p; p.x = tri->p1.x; p.y = y;
                 pixel_t p; p.x = x; p.y = y;
                 barycentricCol(p, bary);
-                color24_t prev = convCol<color24_t>(screen->buffer->col[x][y]);
+                color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
                 prev.r = lerp(prev.r, p.c.r, p.c.a);
                 prev.g = lerp(prev.g, p.c.g, p.c.a);
                 prev.b = lerp(prev.b, p.c.b, p.c.a);
-                screen->buffer->col[x][y] = convCol<screenColType>(prev);
+                screen->buffer->at(x, y) = convCol<screenColType>(prev);
             }
             else
             {
-                screen->buffer->col[x][y] = convCol<screenColType>(col);
+                screen->buffer->at(x, y) = convCol<screenColType>(col);
             }
         }
     }
@@ -1057,64 +1057,9 @@ void renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen)
             }
             else
             {
-                void_texture_t* texVdPtr = (void_texture_t*)pcmd->TextureId;
-                if(texVdPtr == NULL)
-                {
-                    renderData_t<screenColType, color8_t> renderData(
-                        screen,
-                        NULL,
-                        pcmd->ClipRect
-                    );
-                    renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
-                }
-                else switch(texVdPtr->mode)
-                {
-                    case COLOR8: {
-                            renderData_t<screenColType, color8_t> renderData(
-                                screen,
-                                (texture_t<color8_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            );
-                            renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
-                        }
-                        break;
-                    case COLOR16: {
-                            renderData_t<screenColType, color16_t> renderData(
-                                screen,
-                                (texture_t<color16_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            );
-                            renderCommand<screenColType, color16_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
-                        }
-                        break;
-                    case COLOR24: {
-                            renderData_t<screenColType, color24_t> renderData(
-                                screen,
-                                (texture_t<color24_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            );
-                            renderCommand<screenColType, color24_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
-                        }
-                        break;
-                    case COLOR32: {
-                            renderData_t<screenColType, color32_t> renderData(
-                                screen,
-                                (texture_t<color32_t>*)texVdPtr->texture,
-                                pcmd->ClipRect
-                            );
-                            renderCommand<screenColType, color32_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
-                        }
-                        break;
-                    default: {
-                            renderData_t<screenColType, color8_t> renderData(
-                                screen,
-                                NULL,
-                                pcmd->ClipRect
-                            );
-                            renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
-                        }
-                        break;
-                }
+                texture_t<color8_t> *tex = (texture_t<color8_t>*)pcmd->TextureId;
+                renderData_t<screenColType, color8_t> renderData(screen, tex, pcmd->ClipRect);
+                renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
             }
             idx_buffer += pcmd->ElemCount;
         }
