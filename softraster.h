@@ -2,7 +2,7 @@
 #ifndef SOFTRASTER_H
 #define SOFTRASTER_H
 #ifdef ARDUINO
-#include "arduino.h"
+#include "Arduino.h"
 #endif
 #include "stdint.h"
 #include "math.h"
