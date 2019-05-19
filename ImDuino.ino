@@ -26,36 +26,15 @@ const uint8_t TFTSDI = HSPIMOSI;
 #define TFTX 220
 #define TFTY 176
 
-screen_t<color16_t> screen;
-clip_t screenClip;
-texture_t<color16_t> screenBuffer;
-texture_t<color8_t> fontAtlas;
+texture_t<color16_t> screen;
+texture_t<alpha8_t> fontAtlas;
 
 TFT_22_ILI9225 tft = TFT_22_ILI9225(TFTRST, TFTRS, TFTCS, TFTLED, 128);
 SPIClass tftspi(HSPI);
 
 void updateScreen()
 {
-    int16_t x1 = screenClip.x1 > 0 ? screenClip.x1 : 0;
-    int16_t y1 = screenClip.y1 > 0 ? screenClip.y1 : 0;
-    int16_t x2 = screenClip.x2 < TFTX ? screenClip.x2 : TFTX-1;
-    int16_t y2 = screenClip.y2 < TFTY ? screenClip.y2 : TFTY-1;
-
-    if (x1 == -1 || y1 == -1 || x2 == -1 || y2 == -1) return;
-
-    tft.drawBitmap(x1, y1, screenBuffer.pixels, (x2-x1)+1, (y2-y1)+1);
-
-    #ifdef CLIP_SCREEN
-    screenClip.x1 = -1;
-    screenClip.y1 = -1;
-    screenClip.x2 = -1;
-    screenClip.y2 = -1;
-    #else
-    screenClip.x1 = 0;
-    screenClip.y1 = 0;
-    screenClip.x2 = TFTX-1;
-    screenClip.y2 = TFTY-1;
-    #endif
+    tft.drawBitmap(0, 0, (uint16_t*)screen.pixels, screen.w, screen.h);
 }
 
 unsigned long drawTime;
@@ -64,7 +43,7 @@ unsigned long rasterTime;
 void renderFunc(ImDrawData* drawData)
 {
     rasterTime = millis();
-    renderDrawLists(drawData, &screen);
+    renderDrawLists(drawData, screen);
     rasterTime = millis() - rasterTime;
 
     drawTime = millis();
@@ -146,20 +125,15 @@ void setup()
     io.Fonts->ClearInputData();
     io.Fonts->ClearTexData();    //ImGui::MemFree(pixels);
 
-    fontAtlas.init(width, height, (color8_t*)fontAtlasPixels);
+    fontAtlas.init(width, height, (alpha8_t*)fontAtlasPixels);
 
     io.Fonts->TexID = &fontAtlas;
 
-    screenBuffer.init(TFTX, TFTY);
-
-    screen.w = TFTX;
-    screen.h = TFTY;
-    screen.buffer = &screenBuffer;
-    screen.clip = &screenClip;
+    screen.init(TFTX, TFTY);
 }
 
 float f = 0.0f;
-float time = 0.0f;
+unsigned long time = 0;
 
 // try while 1 in loop instead of going off the end of the loop (add delay(0))
 void loop()
@@ -189,20 +163,21 @@ void loop()
     f += 0.05;
     if(f > 1.0f) f = 0.0f;
 
-    float deltaTime = millis() - time;
+    unsigned int deltaTime = millis() - time;
     time += deltaTime;
 
     deltaTime -= (drawTime + rasterTime);
 
-    ImGui::Text("SPI screen draw time %f ms", drawTime / 1.0f);
+    ImGui::Text("SPI screen draw time %d ms", drawTime);
 
-    ImGui::Text("Raster time %f ms", rasterTime / 1.0f);
+    ImGui::Text("Raster time %d ms", rasterTime);
+    Serial.println(rasterTime);
 
-    ImGui::Text("Remaining time %f ms", deltaTime);
+    ImGui::Text("Remaining time %d ms", deltaTime);
 
     ImGui::SliderFloat("SliderFloat", &f, 0.0f, 1.0f);
 
-    screenBuffer.clear();
+    screen.clear();
 
     ImGui::Render();
     renderFunc(ImGui::GetDrawData());

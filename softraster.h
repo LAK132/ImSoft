@@ -1,462 +1,216 @@
 // Based on sronsse's software rasterizer for SDL https://github.com/sronsse/imgui/blob/sw_rasterizer_example/examples/sdl_sw_example/imgui_impl_sdl.cpp
 #ifndef SOFTRASTER_H
 #define SOFTRASTER_H
-#ifdef ARDUINO
-#include "Arduino.h"
-#endif
+
 #include "stdint.h"
 #include "math.h"
 #include "imgui.h"
+#include "color.hpp"
 
-typedef uint8_t color8_t; //256 color
+#ifdef ARDUINO
+#   include "Arduino.h"
+#   pragma GCC optimize("-03")
+#   define INLINE_DEC(F) inline F __attribute__((always_inline))
+#else
+#   define INLINE_DEC(F) inline F
+#endif
+#define INLINE_DEF(F) inline F
+#define INLINE(F) INLINE_DEC(F); INLINE_DEF(F)
+#define INLINE_TEMPLATE(T, F) T INLINE_DEC(F); T INLINE_DEF(F)
 
-typedef uint16_t color16_t; //65k color (high color)
+#define position_t int16_t
 
-struct color24_t { //16M color (true color)
-    color8_t r;
-    color8_t g;
-    color8_t b;
-    bool operator==(const color24_t& rhs) const
-    {
-        return (r == rhs.r) && (g == rhs.g) && (b == rhs.b);
-    }
-    bool operator!=(const color24_t& rhs) const { return !(*this == rhs); }
+struct range_t;
+struct clip_t;
+template<typename COLOR> struct pixel_t;
+template<typename COLOR> struct triangle_t;
+template<typename COLOR> struct quat_t;
+
+struct texture_base_t;
+template<typename COLOR> struct texture_t;
+template<typename COLOR> struct bary_t;
+
+enum texture_type_t { NONE = 0, ALPHA8, VALUE8, COLOR16, COLOR24, COLOR32 };
+
+struct range_t
+{
+    position_t min, max;
 };
-
-struct color32_t { //16M color (true color) + 256 alpha
-    color8_t r;
-    color8_t g;
-    color8_t b;
-    color8_t a;
-    bool operator==(const color32_t& rhs) const
-    {
-        return (r == rhs.r) && (g == rhs.g) && (b == rhs.b) && (a == rhs.a);
-    }
-    bool operator!=(const color32_t& rhs) const { return !(*this == rhs); }
-};
-
-#define COLOR8 sizeof(color8_t)
-#define COLOR16 sizeof(color16_t)
-#define COLOR24 sizeof(color24_t)
-#define COLOR32 sizeof(color32_t)
 
 struct clip_t
 {
-    int16_t x1, y1, x2, y2;
+    range_t x, y;
 };
 
-#define position_t int32_t
-
+template<typename COLOR>
 struct pixel_t
 {
     position_t x, y;
     float u, v;
-    color32_t c;
+    COLOR c;
 };
 
-struct line_t
-{
-    pixel_t p1, p2;
-};
-
+template<typename COLOR>
 struct triangle_t
 {
-    pixel_t p1, p2, p3;
+    pixel_t<COLOR> p1, p2, p3;
 };
 
-struct rectangle_t
+template<typename COLOR>
+struct quad_t
 {
-    pixel_t p1, p2;
+    pixel_t<COLOR> p1, p2;
 };
 
-//Allows multiple texture modes/types to be stored in a type that can be handled by ImGui
-// struct texture_t
-// {
-//     bool isSetup = false;
-//     uint8_t colorMode = 0;
-//     union
-//     {
-//         texture8_t tex8;
-//         ctexture8_t ctex8;
-//         texture16_t tex16;
-//         texture24_t tex24;
-//         texture32_t tex32;
-//     };
-//     size_t* w()
-//     {
-//         switch(colorMode)
-//         {
-//             case COLOR8:
-//                 return &tex8.w;
-//                 break;
-//             case COLOR16:
-//                 return &tex16.w;
-//                 break;
-//             case COLOR24:
-//                 return &tex24.w;
-//                 break;
-//             case COLOR32:
-//                 return &tex32.w;
-//                 break;
-//             default:
-//                 return NULL;
-//                 break;
-//         }
-//     }
-//     size_t* h()
-//     {
-//         switch(colorMode)
-//         {
-//             case COLOR8:
-//                 return &tex8.h;
-//                 break;
-//             case COLOR16:
-//                 return &tex16.h;
-//                 break;
-//             case COLOR24:
-//                 return &tex24.h;
-//                 break;
-//             case COLOR32:
-//                 return &tex32.h;
-//                 break;
-//             default:
-//                 return NULL;
-//                 break;
-//         }
-//     }
-//     void clear()
-//     {
-//         switch(colorMode)
-//         {
-//             case COLOR8:
-//                 tex8.clear();
-//                 break;
-//             case COLOR16:
-//                 tex16.clear();
-//                 break;
-//             case COLOR24:
-//                 tex24.clear();
-//                 break;
-//             case COLOR32:
-//                 tex32.clear();
-//                 break;
-//             default: break;
-//         }
-//     }
-//     void pre_init(uint8_t mode)
-//     {
-//         colorMode = mode;
-//         switch(colorMode)
-//         {
-//             case COLOR8:
-//                 tex8.pre_init();
-//                 break;
-//             case COLOR16:
-//                 tex16.pre_init();
-//                 break;
-//             case COLOR24:
-//                 tex24.pre_init();
-//                 break;
-//             case COLOR32:
-//                 tex32.pre_init();
-//                 break;
-//             default: break;
-//         }
-//         isSetup = true;
-//     }
-//     void init(size_t x, size_t y, uint8_t mode)
-//     {
-//         colorMode = mode;
-//         switch(colorMode)
-//         {
-//             case COLOR8:
-//                 tex8.init(x, y);
-//                 break;
-//             case COLOR16:
-//                 tex16.init(x, y);
-//                 break;
-//             case COLOR24:
-//                 tex24.init(x, y);
-//                 break;
-//             case COLOR32:
-//                 tex32.init(x, y);
-//                 break;
-//             default: break;
-//         }
-//         isSetup = true;
-//     }
-//     texture_t() : isSetup(false){}
-//     texture_t(size_t x, size_t y, uint8_t mode)
-//     {
-//         init(x, y, mode);
-//     }
-//     ~texture_t()
-//     {
-//         if (isSetup)
-//         {
-//             switch(colorMode)
-//             {
-//                 case COLOR8:
-//                     delete &tex8;
-//                     break;
-//                 case COLOR16:
-//                     delete &tex16;
-//                     break;
-//                 case COLOR24:
-//                     delete &tex24;
-//                     break;
-//                 case COLOR32:
-//                     delete &tex32;
-//                     break;
-//                 default: break;
-//             }
-//         }
-//         memset(&tex32, NULL, sizeof(tex32));
-//         isSetup = false;
-//     }
-// };
-
-//extern texture_t fontAtlas;
+struct texture_base_t
+{
+    texture_type_t type;
+};
 
 // Template the texture struct so we can use different color modes/types
-template <typename COL_T>
-struct texture_t
+template <typename COLOR>
+struct texture_t : public texture_base_t
 {
-    bool needFree;
-    size_t w, h;
-    COL_T* pixels;
+    size_t w = 0, h = 0;
+    COLOR *pixels = nullptr;
+    bool needFree = true;
 
     void clear()
     {
-        memset(pixels, 0, w * h * sizeof(COL_T));
+        memset(pixels, 0, w * h * sizeof(COLOR));
     }
+
     void init(size_t x, size_t y)
     {
+        if (needFree && pixels != nullptr)
+            free(pixels);
         w = x;
         h = y;
-        pixels = (COL_T*)malloc(w*h*sizeof(COL_T));
+        pixels = (COLOR*)malloc(w * h * sizeof(COLOR));
         needFree = true;
     }
-    void init(size_t x, size_t y, COL_T* data)
+
+    void init(size_t x, size_t y, COLOR *data)
     {
-        if (needFree)
+        if (needFree && pixels != nullptr)
             free(pixels);
         w = x;
         h = y;
         pixels = data;
         needFree = false;
     }
-    texture_t() : pixels(nullptr), needFree(false){}
-    texture_t(size_t x, size_t y)
-    {
-        init(x, y);
-    }
-    texture_t(size_t x, size_t y, COL_T* data)
-    {
-        init(x, y, data);
-    }
+
+    texture_t();
+
+    texture_t(size_t x, size_t y);
+
+    texture_t(size_t x, size_t y, COLOR *data);
+
     ~texture_t()
     {
-        if (needFree)
+        if (needFree && pixels != nullptr)
         {
             free(pixels);
             pixels = nullptr;
         }
-        needFree = false;
     }
-    COL_T &at(size_t x, size_t y)
+
+    INLINE_DEC(COLOR &at(size_t x, size_t y))
     {
         return pixels[x + (w * y)];
     }
-    const COL_T &at(size_t x, size_t y) const
+
+    INLINE_DEC(const COLOR &at(size_t x, size_t y) const)
     {
         return pixels[x + (w * y)];
     }
-    COL_T &operator()(size_t x, size_t y)
+
+    INLINE_DEC(COLOR &operator()(size_t x, size_t y))
     {
         return pixels[x + (w * y)];
     }
-    const COL_T &operator()(size_t x, size_t y) const
+
+    INLINE_DEC(const COLOR &operator()(size_t x, size_t y) const)
     {
         return pixels[x + (w * y)];
     }
 };
 
-template<typename colType>
-struct screen_t
-{
-    texture_t<colType>* buffer;
-    clip_t* clip;
-    size_t w;
-    size_t h;
-};
+template<> texture_t<alpha8_t>::texture_t() : pixels(nullptr), needFree(false)  { type = texture_type_t::ALPHA8; }
+template<> texture_t<alpha8_t>::texture_t(size_t x, size_t y)                   { type = texture_type_t::ALPHA8; init(x, y); }
+template<> texture_t<alpha8_t>::texture_t(size_t x, size_t y, alpha8_t* data)   { type = texture_type_t::ALPHA8; init(x, y, data); }
 
-template<typename screenColType, typename texColType>
-struct renderData_t
-{
-    screen_t<screenColType>* screen;
-    ImVec4 clipRect;
-    texture_t<texColType>* texture;
-    renderData_t(screen_t<screenColType>* s, texture_t<texColType>* t, ImVec4 c) : screen(s), texture(t), clipRect(c){}
-};
+template<> texture_t<value8_t>::texture_t() : pixels(nullptr), needFree(false)  { type = texture_type_t::VALUE8; }
+template<> texture_t<value8_t>::texture_t(size_t x, size_t y)                   { type = texture_type_t::VALUE8; init(x, y); }
+template<> texture_t<value8_t>::texture_t(size_t x, size_t y, value8_t* data)   { type = texture_type_t::VALUE8; init(x, y, data); }
 
-position_t dot(const pixel_t& a, const pixel_t& b);
+template<> texture_t<color16_t>::texture_t() : pixels(nullptr), needFree(false) { type = texture_type_t::COLOR16; }
+template<> texture_t<color16_t>::texture_t(size_t x, size_t y)                  { type = texture_type_t::COLOR16; init(x, y); }
+template<> texture_t<color16_t>::texture_t(size_t x, size_t y, color16_t* data) { type = texture_type_t::COLOR16; init(x, y, data); }
 
-// Linear interpolation functions
-template<typename T>
-inline T lerp(T a, T b, uint8_t f) // [0, 255]
-{
-    if (a == b) return a;
-    return a + ((f * (b - a)) / 0xFF);
-}
+template<> texture_t<color24_t>::texture_t() : pixels(nullptr), needFree(false) { type = texture_type_t::COLOR24; }
+template<> texture_t<color24_t>::texture_t(size_t x, size_t y)                  { type = texture_type_t::COLOR24; init(x, y); }
+template<> texture_t<color24_t>::texture_t(size_t x, size_t y, color24_t* data) { type = texture_type_t::COLOR24; init(x, y, data); }
 
-template<typename T>
-inline T lerp(T a, T b, float f) // [0.0f, 1.0f]
-{
-    if (a == b) return a;
-    return a + (f * (b - a));
-}
+template<> texture_t<color32_t>::texture_t() : pixels(nullptr), needFree(false) { type = texture_type_t::COLOR32; }
+template<> texture_t<color32_t>::texture_t(size_t x, size_t y)                  { type = texture_type_t::COLOR32; init(x, y); }
+template<> texture_t<color32_t>::texture_t(size_t x, size_t y, color32_t* data) { type = texture_type_t::COLOR32; init(x, y, data); }
 
-// Color type conversions
-template<typename C1, typename C2>
-inline C1 convCol(const C2& c)
-{
-    C1 c1;
-    return c1;
-}
-
-template<> inline color8_t convCol(const color8_t& c) { return c; }
-template<> inline color16_t convCol(const color16_t& c) { return c; }
-template<> inline color24_t convCol(const color24_t& c) { return c; }
-template<> inline color32_t convCol(const color32_t& c) { return c; }
-
-template<> inline color16_t convCol(const color8_t& c)
-{
-    return (((c * 31) / 255) << 11) |
-        (((c * 63) / 255) << 5) |
-        ((c * 31) / 255);
-}
-template<> inline color24_t convCol (const color8_t& c)
-{
-    color24_t rtn;
-    rtn.r = c;
-    rtn.g = c;
-    rtn.b = c;
-    return rtn;
-}
-#if defined(COL8_ALPHACOLOR)
-template<> inline color8_t convCol (const color32_t& c)
-{
-    return (((c.r + c.g + c.b) / 3) * c.a) / 255;
-}
-template<> inline color32_t convCol (const color8_t& c)
-{
-    color32_t rtn;
-    rtn.r = c;
-    rtn.g = c;
-    rtn.b = c;
-    rtn.a = c;
-    return rtn;
-}
-#elif defined(COL8_COLOR)
-template<> inline color8_t convCol (const color32_t& c)
-{
-    return (c.r + c.g + c.b) / 3;
-}
-template<> inline color32_t convCol (const color8_t& c)
-{
-    color32_t rtn;
-    rtn.r = c;
-    rtn.g = c;
-    rtn.b = c;
-    rtn.a = 0xFF;
-    return rtn;
-}
-#else
-template<> inline color8_t convCol (const color32_t& c)
-{
-    return c.a;
-}
-template<> inline color32_t convCol (const color8_t& c)
-{
-    color32_t rtn;
-    rtn.r = 0xFF;
-    rtn.g = 0xFF;
-    rtn.b = 0xFF;
-    rtn.a = c;
-    return rtn;
-}
-#endif
-
-template<> inline color8_t convCol (const color16_t& c)
-{
-    return (((((c & 0xF800) >> 11) * 255) / 31) +
-        ((((c & 0x07E0) >> 5 ) * 255) / 63) +
-        (((c & 0x001F) * 255) / 31)) / 3;
-}
-template<> inline color24_t convCol (const color16_t& c)
-{
-    color24_t rtn;
-    rtn.r = (((c & 0xF800) >> 11) * 255) / 31;
-    rtn.g = (((c & 0x07E0) >> 5 ) * 255) / 63;
-    rtn.b = ((c & 0x001F) * 255) / 31;
-    return rtn;
-}
-template<> inline color32_t convCol (const color16_t& c)
-{
-    color32_t rtn;
-    rtn.r = (((c & 0xF800) >> 11) * 255) / 31;
-    rtn.g = (((c & 0x07E0) >> 5 ) * 255) / 63;
-    rtn.b = ((c & 0x001F) * 255) / 31;
-    rtn.a = 0xFF;
-    return rtn;
-}
-
-template<> inline color8_t convCol (const color24_t& c)
-{
-    return (c.r + c.g + c.b) / 3;
-}
-template<> inline color16_t convCol (const color24_t& c)
-{
-    return (((c.r * 31) / 255) << 11) |
-        (((c.g * 63) / 255) << 5) |
-        ((c.b * 31) / 255);
-}
-template<> inline color32_t convCol (const color24_t& c)
-{
-    color32_t rtn;
-    rtn.r = c.r;
-    rtn.g = c.g;
-    rtn.b = c.b;
-    rtn.a = 0xFF;
-    return rtn;
-}
-
-template<> inline color16_t convCol (const color32_t& c)
-{
-    return (((c.r * 31) / 255) << 11) |
-        (((c.g * 63) / 255) << 5) |
-        ((c.b * 31) / 255);
-}
-template<> inline color24_t convCol (const color32_t& c)
-{
-    color24_t rtn;
-    rtn.r = c.r;
-    rtn.g = c.g;
-    rtn.b = c.b;
-    return rtn;
-}
-
+template<typename COLOR>
 struct bary_t
 {
-    pixel_t a, b, c, p0, p1;
+    pixel_t<COLOR> a, b, c, p0, p1;
     position_t d00, d01, d11;
     float denom;
 };
 
-inline bary_t baryPre(const pixel_t& a, const pixel_t& b, const pixel_t& c)
+template<typename T>
+inline void swap(T* tri1, T* tri2)
 {
-    bary_t bary;
+    T temp;
+    memcpy(&temp, tri1, sizeof(T));
+    memcpy(tri1, tri2, sizeof(T));
+    memcpy(tri2, &temp, sizeof(T));
+}
+
+INLINE_TEMPLATE(template<typename T>, T inl_min(const T a, const T b))
+{
+    return a > b ? b : a;
+}
+
+INLINE_TEMPLATE(template<typename T>, T inl_max(const T a, const T b))
+{
+    return a > b ? a : b;
+}
+
+INLINE(range_t inl_min(const range_t &a, const range_t &b))
+{
+    return {
+        inl_max(a.min, b.min),
+        inl_min(a.max, b.max)
+    };
+}
+
+INLINE(range_t inl_max(const range_t &a, const range_t &b))
+{
+    return {
+        inl_min(a.min, b.min),
+        inl_max(a.max, b.max)
+    };
+}
+
+INLINE_TEMPLATE(template<typename COLOR>, position_t dot(const pixel_t<COLOR>& a, const pixel_t<COLOR>& b))
+{
+    return (a.x * b.x) + (a.y * b.y);
+}
+
+template<typename COLOR>
+inline bary_t<COLOR> baryPre(
+    const pixel_t<COLOR>& a,
+    const pixel_t<COLOR>& b,
+    const pixel_t<COLOR>& c)
+{
+    bary_t<COLOR> bary;
     bary.p0.x = b.x - a.x;
     bary.p0.y = b.y - a.x;
     bary.p1.x = c.x - a.x;
@@ -471,35 +225,22 @@ inline bary_t baryPre(const pixel_t& a, const pixel_t& b, const pixel_t& c)
     return bary;
 }
 
-inline void barycentricCol(pixel_t& p, const bary_t& bary)
+template<typename COLOR>
+inline void barycentricCol(pixel_t<COLOR>& p, const bary_t<COLOR>& bary)
 {
-    pixel_t p2; p2.x = p.x - bary.a.x; p2.y = p.y - bary.a.y;
+    pixel_t<COLOR> p2; p2.x = p.x - bary.a.x; p2.y = p.y - bary.a.y;
     position_t d20 = dot(p2, bary.p0);
     position_t d21 = dot(p2, bary.p1);
     float v = (bary.d11 * d20 - bary.d01 * d21) * bary.denom;
     float w = (bary.d00 * d21 - bary.d01 * d20) * bary.denom;
     float u = 1.0f - v - w;
-    p.c.r = (bary.a.c.r * u) + (bary.b.c.r * v) + (bary.c.c.r * w);
-    p.c.g = (bary.a.c.g * u) + (bary.b.c.g * v) + (bary.c.c.g * w);
-    p.c.b = (bary.a.c.b * u) + (bary.b.c.b * v) + (bary.c.c.b * w);
-    p.c.a = (bary.a.c.a * u) + (bary.b.c.a * v) + (bary.c.c.a * w);
+    p.c = (bary.a.c * u) + (bary.b.c * v) + (bary.c.c * w);
 }
 
-inline void barycentricUV(pixel_t& p, const bary_t& bary)
+template<typename COLOR>
+inline void barycentricUV(pixel_t<COLOR>& p, const bary_t<COLOR>& bary)
 {
-    pixel_t p2; p2.x = p.x - bary.a.x; p2.y = p.y - bary.a.y;
-    position_t d20 = dot(p2, bary.p0);
-    position_t d21 = dot(p2, bary.p1);
-    float v = (bary.d11 * d20 - bary.d01 * d21) * bary.denom;
-    float w = (bary.d00 * d21 - bary.d01 * d20) * bary.denom;
-    float u = 1.0f - v - w;
-    p.u = (bary.a.u * u) + (bary.b.u * v) + (bary.c.u * w);
-    p.v = (bary.a.v * u) + (bary.b.v * v) + (bary.c.v * w);
-}
-
-inline void barycentricUVCol(pixel_t& p, const bary_t& bary)
-{
-    pixel_t p2; p2.x = p.x - bary.a.x; p2.y = p.y - bary.a.y;
+    pixel_t<COLOR> p2; p2.x = p.x - bary.a.x; p2.y = p.y - bary.a.y;
     position_t d20 = dot(p2, bary.p0);
     position_t d21 = dot(p2, bary.p1);
     float v = (bary.d11 * d20 - bary.d01 * d21) * bary.denom;
@@ -507,406 +248,469 @@ inline void barycentricUVCol(pixel_t& p, const bary_t& bary)
     float u = 1.0f - v - w;
     p.u = (bary.a.u * u) + (bary.b.u * v) + (bary.c.u * w);
     p.v = (bary.a.v * u) + (bary.b.v * v) + (bary.c.v * w);
-    p.c.r = (bary.a.c.r * u) + (bary.b.c.r * v) + (bary.c.c.r * w);
-    p.c.g = (bary.a.c.g * u) + (bary.b.c.g * v) + (bary.c.c.g * w);
-    p.c.b = (bary.a.c.b * u) + (bary.b.c.b * v) + (bary.c.c.b * w);
-    p.c.a = (bary.a.c.a * u) + (bary.b.c.a * v) + (bary.c.c.a * w);
 }
 
-enum render_t {
-    NORMAL  = 0,
-    BLEND   = 1<<0,
-    TEXTURE = 1<<1
-};
-
-template<typename screenColType, typename texColType>
-void renderRect(renderData_t<screenColType, texColType>* renderData, rectangle_t* rect, const render_t mode)
+template<typename COLOR>
+inline void barycentricUVCol(pixel_t<COLOR>& p, const bary_t<COLOR>& bary)
 {
-    const screen_t<screenColType>* screen = renderData->screen;
-    const texture_t<texColType>* tex = renderData->texture;
-    const ImVec4& clipRect = renderData->clipRect;
+    pixel_t<COLOR> p2; p2.x = p.x - bary.a.x; p2.y = p.y - bary.a.y;
+    position_t d20 = dot(p2, bary.p0);
+    position_t d21 = dot(p2, bary.p1);
+    float v = (bary.d11 * d20 - bary.d01 * d21) * bary.denom;
+    float w = (bary.d00 * d21 - bary.d01 * d20) * bary.denom;
+    float u = 1.0f - v - w;
+    p.u = (bary.a.u * u) + (bary.b.u * v) + (bary.c.u * w);
+    p.v = (bary.a.v * u) + (bary.b.v * v) + (bary.c.v * w);
+    p.c = (bary.a.c * u) + (bary.b.c * v) + (bary.c.c * w);
+}
 
-    const position_t minclipx = (clipRect.x > 0 ? clipRect.x : 0);
-    const position_t minclipy = (clipRect.y > 0 ? clipRect.y : 0);
-
-    const position_t maxclipx = (clipRect.z < screen->w ? clipRect.z : screen->w);
-    const position_t maxclipy = (clipRect.w < screen->h ? clipRect.w : screen->h);
-
-    if ((rect->p2.x < minclipx) ||
-        (rect->p2.y < minclipy) ||
-        (rect->p1.x >= maxclipx) ||
-        (rect->p1.y >= maxclipy))
+template<typename SCREEN, typename TEXTURE, typename COLOR>
+void renderQuadCore(
+    texture_t<SCREEN>           &screen,
+    const texture_t<TEXTURE>    &tex,
+    const clip_t                &clip,
+    const quad_t<COLOR>         &quad,
+    const bool                  alphaBlend
+)
+{
+    if ((quad.p2.x < clip.x.min) ||
+        (quad.p2.y < clip.y.min) ||
+        (quad.p1.x >= clip.x.max) ||
+        (quad.p1.y >= clip.y.max))
         return;
 
-    const position_t startx = (rect->p1.x > minclipx ? rect->p1.x : minclipx);
-    const position_t starty = (rect->p1.y > minclipy ? rect->p1.y : minclipy);
+    const range_t rx = inl_min({quad.p1.x, quad.p2.x}, clip.x);
+    const range_t ry = inl_min({quad.p1.y, quad.p2.y}, clip.y);
 
-    const position_t endx = (rect->p2.x < maxclipx ? rect->p2.x : maxclipx);
-    const position_t endy = (rect->p2.y < maxclipy ? rect->p2.y : maxclipy);
+    position_t p1u = (position_t)((quad.p1.u * tex.w) + 0.5f) % tex.w;
+    position_t p1v = (position_t)((quad.p1.v * tex.h) + 0.5f) % tex.h;
+    position_t p2u = (position_t)((quad.p2.u * tex.w) + 0.5f) % tex.w;
+    position_t p2v = (position_t)((quad.p2.v * tex.h) + 0.5f) % tex.h;
 
-    #ifdef CLIP_SCREEN
-    screen->clip->x1 = (startx < screen->clip->x1 || screen->clip->x1 == -1 ? startx : screen->clip->x1);
-    screen->clip->y1 = (starty < screen->clip->y1 || screen->clip->y1 == -1 ? starty : screen->clip->y1);
-    screen->clip->x2 = (endx > screen->clip->x2 || screen->clip->x2 == -1 ? endx-1 : screen->clip->x2);
-    screen->clip->y2 = (endy > screen->clip->y2 || screen->clip->y2 == -1 ? endy-1 : screen->clip->y2);
-    #endif
+    const float duDx = (float)(p2u - p1u) / (float)(quad.p2.x - quad.p1.x);
+    const float dvDy = (float)(p2v - p1v) / (float)(quad.p2.y - quad.p1.y);
 
-    if (mode & render_t::TEXTURE)
+    const float startu = p1u + (duDx * (float)(rx.min - quad.p1.x > 0 ? rx.min - quad.p1.x : 0));
+    const float startv = p1v + (dvDy * (float)(ry.min - quad.p1.y > 0 ? ry.min - quad.p1.y : 0));
+
+    bool blit = ((duDx == 1.0f) && (dvDy == 1.0f));
+
+    if (blit)
     {
-        #ifdef TEXTURE_MODE_CLAMP
-        position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f);
-        if (p1u < 0) p1u = 0;
-        else if (p1u > tex->w) p1u = tex->w - 1;
-
-        position_t p1v = (position_t)((rect->p1.v * tex->h) + 0.5f);
-        if (p1v < 0) p1v = 0;
-        else if (p1v > tex->h) p1v = tex->h - 1;
-
-        position_t p2u = (position_t)((rect->p2.u * tex->w) + 0.5f);
-        if (p2u < 0) p2u = 0;
-        else if (p2u > tex->w) p2u = tex->w - 1;
-
-        position_t p2v = (position_t)((rect->p2.v * tex->h) + 0.5f);
-        if (p2v < 0) p2v = 0;
-        else if (p2v > tex->h) p2v = tex->h - 1;
-        #else
-        position_t p1u = (position_t)((rect->p1.u * tex->w) + 0.5f) % tex->w;
-        position_t p1v = (position_t)((rect->p1.v * tex->h) + 0.5f) % tex->h;
-        position_t p2u = (position_t)((rect->p2.u * tex->w) + 0.5f) % tex->w;
-        position_t p2v = (position_t)((rect->p2.v * tex->h) + 0.5f) % tex->h;
-        #endif
-
-        const float duDx = (float)(p2u - p1u) / (float)(rect->p2.x - rect->p1.x);
-        const float dvDy = (float)(p2v - p1v) / (float)(rect->p2.y - rect->p1.y);
-
-        const float startu = p1u + (duDx * (float)(startx - rect->p1.x > 0 ? startx - rect->p1.x : 0));
-        const float startv = p1v + (dvDy * (float)(starty - rect->p1.y > 0 ? starty - rect->p1.y : 0));
-
-        bool blit = ((duDx == 1.0f) && (dvDy == 1.0f));
-
-        if (blit)
+        const position_t u = startu - rx.min;
+        const position_t v = startv - ry.min;
+        if (alphaBlend)
         {
-            position_t u = startu - startx, v = startv - starty;
-            for (position_t x = startx; x < endx; x++)
+            for (position_t y = ry.min; y < ry.max; ++y)
             {
-                for (position_t y = starty; y < endy; y++)
+                for (position_t x = rx.min; x < rx.max; ++x)
                 {
-                    color32_t c = convCol<color32_t>(tex->at(u+x, v+y));
-                    if (c.a == 0) continue;
-                    c.r = (c.r * rect->p1.c.r) / 255;
-                    c.g = (c.g * rect->p1.c.g) / 255;
-                    c.b = (c.b * rect->p1.c.b) / 255;
-                    if (mode & render_t::BLEND && c.a != 255)
-                    {
-                        color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
-                        c.r = lerp(prev.r, c.r, c.a);
-                        c.g = lerp(prev.g, c.g, c.a);
-                        c.b = lerp(prev.b, c.b, c.a);
-                    }
-                    screen->buffer->at(x, y) = convCol<screenColType>(c);
+                    screen.at(x, y) %= tex.at(x + u, y + v) * quad.p1.c;
                 }
             }
         }
         else
         {
-            float u = startu, v = startv;
-            for (position_t x = startx; x < endx; x++)
+            for (position_t y = ry.min; y < ry.max; ++y)
             {
-                for (position_t y = starty; y < endy; y++)
+                for (position_t x = rx.min; x < rx.max; ++x)
                 {
-                    color32_t c = convCol<color32_t>(tex->at((position_t)(u+0.5f), (position_t)(v+0.5f)));
-                    if (c.a == 0) continue;
-                    c.r = (c.r * rect->p1.c.r) / 255;
-                    c.g = (c.g * rect->p1.c.g) / 255;
-                    c.b = (c.b * rect->p1.c.b) / 255;
-                    if (mode & render_t::BLEND && c.a != 255)
-                    {
-                        color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
-                        c.r = lerp(prev.r, c.r, c.a);
-                        c.g = lerp(prev.g, c.g, c.a);
-                        c.b = lerp(prev.b, c.b, c.a);
-                    }
-                    screen->buffer->at(x, y) = convCol<screenColType>(c);
+                    screen.at(x, y) = tex.at(x + u, y + v) * quad.p1.c;
+                }
+            }
+        }
+    }
+    else
+    {
+        float u = startu;
+        float v = startv;
+        if (alphaBlend)
+        {
+            for (position_t y = ry.min; y < ry.max; ++y)
+            {
+                for (position_t x = rx.min; x < rx.max; ++x)
+                {
+                    screen.at(x, y) %= tex.at(x + u, y + v) * quad.p1.c;
+                    v += dvDy;
+                }
+                u += duDx;
+            }
+        }
+        else
+        {
+            for (position_t y = ry.min; y < ry.max; ++y)
+            {
+                for (position_t x = rx.min; x < rx.max; ++x)
+                {
+                    screen.at(x, y) = tex.at(x + u, y + v) * quad.p1.c;
                     v += dvDy;
                 }
                 u += duDx;
             }
         }
     }
-    else if (mode & render_t::BLEND)
+}
+
+template<typename SCREEN, typename COLOR>
+void renderQuadCore(
+    texture_t<SCREEN>   &screen,
+    const clip_t        &clip,
+    const quad_t<COLOR> &quad,
+    const bool          alphaBlend
+)
+{
+    if ((quad.p2.x < clip.x.min) ||
+        (quad.p2.y < clip.y.min) ||
+        (quad.p1.x >= clip.x.max) ||
+        (quad.p1.y >= clip.y.max))
+        return;
+
+    const range_t rx = inl_min({quad.p1.x, quad.p2.x}, clip.x);
+    const range_t ry = inl_min({quad.p1.y, quad.p2.y}, clip.y);
+
+    if (alphaBlend)
     {
-        for (position_t x = startx; x < endx; x++)
+        for (position_t y = ry.min; y < ry.max; ++y)
         {
-            for (position_t y = starty; y < endy; y++)
+            for (position_t x = rx.min; x < rx.max; ++x)
             {
-                // could make a specialised lerp function for each color type
-                // to reduce the number of color conversions per pixel
-                color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
-                prev.r = lerp(prev.r, rect->p1.c.r, rect->p1.c.a);
-                prev.g = lerp(prev.g, rect->p1.c.g, rect->p1.c.a);
-                prev.b = lerp(prev.b, rect->p1.c.b, rect->p1.c.a);
-                screen->buffer->at(x, y) = convCol<screenColType>(prev);
+                screen.at(x, y) %= quad.p1.c;
             }
         }
     }
     else
     {
-        for (position_t x = startx; x < endx; x++)
+        for (position_t y = ry.min; y < ry.max; ++y)
         {
-            for (position_t y = starty; y < endy; y++)
+            for (position_t x = rx.min; x < rx.max; ++x)
             {
-                screen->buffer->at(x, y) = convCol<screenColType>(rect->p1.c);
+                screen.at(x, y) = quad.p1.c;
             }
         }
     }
 }
 
-template<typename T>
-inline void swap(T* tri1, T* tri2)
-{
-    T temp;
-    memcpy(&temp, tri1, sizeof(T));
-    memcpy(tri1, tri2, sizeof(T));
-    memcpy(tri2, &temp, sizeof(T));
-}
-
-template<typename screenColType, typename texColType>
-void renderTriCore(
-    const renderData_t<screenColType, texColType> *const renderData,
-    const position_t minclipx,  const position_t maxclipx,
-    const position_t minclipy,  const position_t maxclipy,
-    const position_t startx,    const position_t endx,
-    const position_t starty1,   const position_t starty2,
-    const position_t endy1,     const position_t endy2,
-    const position_t f1,        const position_t f2,
-    const bary_t bary,          const color32_t col,
-    const render_t mode
+template<typename SCREEN, typename COLOR>
+void renderQuad(
+    texture_t<SCREEN>       &screen,
+    const texture_base_t    *tex,
+    const ImVec4            &clipRect,
+    const quad_t<COLOR>     &quad,
+    const bool              alphaBlend
 )
 {
-    const screen_t<screenColType> *const screen = renderData->screen;
-    const texture_t<texColType> *const tex = renderData->texture;
+    const clip_t clip = {
+        inl_min({clipRect.x, clipRect.z}, {0.0f, (position_t)screen.w}),
+        inl_min({clipRect.y, clipRect.w}, {0.0f, (position_t)screen.w})
+    };
 
-    for (position_t x = startx; x < endx; ++x)
+    switch (tex == nullptr ? texture_type_t::NONE : tex->type)
     {
-        const float f = (x - f1) / (float)(f2 - f1);
-        position_t starty   = lerp(starty1, starty2, f);
-        position_t endy     = lerp(endy1, endy2, f);
-        starty  = (starty > minclipy ? starty : minclipy);
-        endy    = (endy < maxclipy ? endy : maxclipy);
-        for (position_t y = starty; y < endy; ++y)
+    case texture_type_t::ALPHA8:
+        renderQuadCore(screen, *(texture_t<alpha8_t>*)tex, clip, quad, alphaBlend);
+        break;
+
+    case texture_type_t::VALUE8:
+        renderQuadCore(screen, *(texture_t<value8_t>*)tex, clip, quad, alphaBlend);
+        break;
+
+    case texture_type_t::COLOR16:
+        renderQuadCore(screen, *(texture_t<color16_t>*)tex, clip, quad, alphaBlend);
+        break;
+
+    case texture_type_t::COLOR24:
+        renderQuadCore(screen, *(texture_t<color24_t>*)tex, clip, quad, alphaBlend);
+        break;
+
+    case texture_type_t::COLOR32:
+        renderQuadCore(screen, *(texture_t<color32_t>*)tex, clip, quad, alphaBlend);
+        break;
+
+    default:
+        renderQuadCore(screen, clip, quad, alphaBlend);
+        break;
+    }
+}
+
+template<typename SCREEN, typename TEXTURE, typename COLOR>
+void renderTriCore(
+    texture_t<SCREEN>           &screen,
+    const texture_t<TEXTURE>    &tex,
+    const clip_t                &clip,
+    const range_t               &rY,
+    const range_t               &rX1,
+    const range_t               &rX2,
+    const bary_t<COLOR>         &bary,
+    const bool                  alphaBlend
+)
+{
+    if (alphaBlend)
+    {
+        const range_t ry = inl_min(rY, clip.y);
+        for (position_t y = ry.min; y < ry.max; ++y)
         {
-            if (mode & render_t::TEXTURE)
+            const float f = (y - rY.min) / (float)(rY.max - rY.min);
+            const range_t rx =
+                inl_min({lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
+            for (position_t x = rx.min; x < rx.max; ++x)
             {
-                pixel_t p; p.x = x; p.y = y;
-                barycentricCol(p, bary);
-                #ifdef TEXTURE_MODE_CLAMP
-                position_t u = (position_t)((p.u * tex->w) + 0.5f);
-                position_t v = (position_t)((p.v * tex->h) + 0.5f);
-                if (u < 0) u = 0;
-                else if (u > tex->w) u = tex->w - 1;
-                if (v < 0) v = 0;
-                else if (v > tex->h) v = tex->h - 1;
-                #else
-                position_t u = (position_t)((p.u * tex->w) + 0.5f) % tex->w;
-                position_t v = (position_t)((p.v * tex->h) + 0.5f) % tex->h;
-                #endif
-                if (mode & render_t::BLEND)
-                {
-                    color32_t c = convCol<color32_t>(tex->at(u, v));
-                    if (!c.a || !col.a) { c.a = 0; continue; }
-                    c.a = (c.a * col.a) / 255;
-                    c.r = (c.r * col.r) / 255;
-                    c.g = (c.g * col.g) / 255;
-                    c.b = (c.b * col.b) / 255;
-                    color24_t prev;
-                    if (c.a == 255)
-                    {
-                        prev = convCol<color24_t>(c);
-                    }
-                    else
-                    {
-                        prev = convCol<color24_t>(screen->buffer->at(x, y));
-                        prev.r = lerp(prev.r, c.r, c.a);
-                        prev.g = lerp(prev.g, c.g, c.a);
-                        prev.b = lerp(prev.b, c.b, c.a);
-                    }
-                    screen->buffer->at(x, y) = convCol<screenColType>(prev);
-                }
-                else
-                {
-                    color24_t c = convCol<color24_t>(tex->at(u, v));
-                    c.r = (c.r * col.r) / 255;
-                    c.g = (c.g * col.g) / 255;
-                    c.b = (c.b * col.b) / 255;
-                    screen->buffer->at(x, y) = convCol<screenColType>(c);
-                }
+                pixel_t<COLOR> p; p.x = x; p.y = y;
+                barycentricUV(p, bary);
+
+                position_t u = (position_t)((p.u * tex.w) + 0.5f) % tex.w;
+                position_t v = (position_t)((p.v * tex.h) + 0.5f) % tex.h;
+
+                screen.at(x, y) %= tex.at(u, v) * bary.a.c;
             }
-            else if (mode & render_t::BLEND)
+        }
+    }
+    else
+    {
+        const range_t ry = inl_min(rY, clip.y);
+        for (position_t y = ry.min; y < ry.max; ++y)
+        {
+            const float f = (y - rY.min) / (float)(rY.max - rY.min);
+            const range_t rx =
+                inl_min({lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
+            for (position_t x = rx.min; x < rx.max; ++x)
             {
-                // pixel_t p; p.x = tri->p1.x; p.y = y;
-                pixel_t p; p.x = x; p.y = y;
-                barycentricCol(p, bary);
-                color24_t prev = convCol<color24_t>(screen->buffer->at(x, y));
-                prev.r = lerp(prev.r, p.c.r, p.c.a);
-                prev.g = lerp(prev.g, p.c.g, p.c.a);
-                prev.b = lerp(prev.b, p.c.b, p.c.a);
-                screen->buffer->at(x, y) = convCol<screenColType>(prev);
-            }
-            else
-            {
-                screen->buffer->at(x, y) = convCol<screenColType>(col);
+                pixel_t<COLOR> p; p.x = x; p.y = y;
+                barycentricUV(p, bary);
+
+                position_t u = (position_t)((p.u * tex.w) + 0.5f) % tex.w;
+                position_t v = (position_t)((p.v * tex.h) + 0.5f) % tex.h;
+
+                screen.at(x, y) = tex.at(u, v) * bary.a.c;
             }
         }
     }
 }
 
-template<typename screenColType, typename texColType>
-void renderTri(renderData_t<screenColType, texColType>* renderData, triangle_t* tri, const render_t mode)
+template<typename SCREEN, typename COLOR>
+void renderTriCore(
+    texture_t<SCREEN>   &screen,
+    const clip_t        &clip,
+    const range_t       &rY,
+    const range_t       &rX1,
+    const range_t       &rX2,
+    const bary_t<COLOR> &bary,
+    const bool          uvBlend,
+    const bool          alphaBlend
+)
 {
-    tri->p1.x = (position_t)(tri->p1.x + 0.5f);
-    tri->p2.x = (position_t)(tri->p2.x + 0.5f);
-    tri->p3.x = (position_t)(tri->p3.x + 0.5f);
-
-    if (tri->p1.x > tri->p2.x) swap<pixel_t>(&(tri->p1), &(tri->p2));
-    if (tri->p1.x > tri->p3.x) swap<pixel_t>(&(tri->p1), &(tri->p3));
-    if (tri->p2.x > tri->p3.x) swap<pixel_t>(&(tri->p2), &(tri->p3));
-
-    const screen_t<screenColType> *const screen = renderData->screen;
-    const ImVec4& clipRect = renderData->clipRect;
-
-    const position_t minclipx = (clipRect.x > 0 ? clipRect.x : 0);
-    const position_t minclipy = (clipRect.y > 0 ? clipRect.y : 0);
-
-    const position_t maxclipx = (clipRect.z < screen->w ? clipRect.z : screen->w);
-    const position_t maxclipy = (clipRect.w < screen->h ? clipRect.w : screen->h);
-
-    if ((tri->p3.x < minclipx) ||
-        (tri->p1.x >= maxclipx))
-        return;
-
-    #ifdef CLIP_SCREEN
-    screen->clip->x1 = (tri->p1.x < screen->clip->x1 || screen->clip->x1 == -1 ? tri->p1.x : screen->clip->x1);
-    screen->clip->x2 = (tri->p3.x > screen->clip->x2 || screen->clip->x2 == -1 ? tri->p3.x : screen->clip->x2);
-    position_t miny = (tri->p1.y < tri->p2.y ? (tri->p1.y < tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y < tri->p3.y ? tri->p2.y : tri->p3.y));
-    position_t maxy = (tri->p1.y > tri->p2.y ? (tri->p1.y > tri->p3.y ? tri->p1.y : tri->p3.y) : (tri->p2.y > tri->p3.y ? tri->p2.y : tri->p3.y));
-    screen->clip->y1 = (miny < screen->clip->y1 || screen->clip->y1 == -1 ? miny : screen->clip->y1);
-    screen->clip->y2 = (maxy > screen->clip->y2 || screen->clip->y2 == -1 ? maxy : screen->clip->y2);
-    #endif
-
-    position_t startx, endx;
-    position_t starty1, starty2, endy1, endy2;
-
-    if (tri->p2.x == tri->p3.x) // Flat right triangle
+    if (uvBlend)
     {
-        if (tri->p1.x == tri->p2.x) // Flat line
+        if (alphaBlend)
         {
-            if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
-            if (tri->p1.y > tri->p3.y) swap<pixel_t>(&(tri->p1), &(tri->p3));
-            if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
-            if (tri->p1.x < minclipx || tri->p1.x > maxclipx) return;
-            renderTriCore(renderData,
-                minclipx, maxclipx,
-                minclipy, maxclipy,
-                tri->p1.x, tri->p1.x + 1,           // startx, endx
-                tri->p1.y, tri->p1.y,               // starty1, starty2
-                tri->p3.y, tri->p3.y,               // endy1, endy2
-                0, 1,                               // f1, f2
-                baryPre(tri->p1, tri->p2, tri->p3), // bary
-                tri->p1.c,                          // color
-                mode
-            );
-            return;
+            const range_t ry = inl_min(rY, clip.y);
+            for (position_t y = ry.min; y < ry.max; ++y)
+            {
+                const float f = (y - rY.min) / (float)(rY.max - rY.min);
+                const range_t rx =
+                    inl_min({lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
+                for (position_t x = rx.min; x < rx.max; ++x)
+                {
+                    pixel_t<COLOR> p; p.x = x; p.y = y;
+                    barycentricCol(p, bary);
+                    screen.at(x, y) %= p.c;
+                }
+            }
         }
         else
         {
-            if (tri->p2.y > tri->p3.y) swap<pixel_t>(&(tri->p2), &(tri->p3));
-            renderTriCore(renderData,
-                minclipx, maxclipx,
-                minclipy, maxclipy,
-                (tri->p1.x > minclipx ? tri->p1.x : minclipx),  // startx
-                (tri->p3.x < maxclipx ? tri->p3.x : maxclipx),  // endx
-                tri->p1.y, tri->p2.y,                           // starty1, starty2
-                tri->p1.y, tri->p3.y,                           // endy1, endy2
-                tri->p1.x, tri->p3.x,                           // f1, f2
-                baryPre(tri->p1, tri->p2, tri->p3),             // bary
-                tri->p1.c,                                      // color
-                mode
-            );
-            return;
+            const range_t ry = inl_min(rY, clip.y);
+            for (position_t y = ry.min; y < ry.max; ++y)
+            {
+                const float f = (y - rY.min) / (float)(rY.max - rY.min);
+                const range_t rx =
+                    inl_min({lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
+                for (position_t x = rx.min; x < rx.max; ++x)
+                {
+                    pixel_t<COLOR> p; p.x = x; p.y = y;
+                    barycentricCol(p, bary);
+                    screen.at(x, y) = p.c;
+                }
+            }
         }
     }
-    else if (tri->p1.x == tri->p2.x) // Flat left triangle
+    else
     {
-        if (tri->p1.y > tri->p2.y) swap<pixel_t>(&(tri->p1), &(tri->p2));
-        renderTriCore(renderData,
-            minclipx, maxclipx,
-            minclipy, maxclipy,
-            (tri->p1.x > minclipx ? tri->p1.x : minclipx),  // startx
-            (tri->p3.x < maxclipx ? tri->p3.x : maxclipx),  // endx
-            tri->p1.y, tri->p3.y,                           // starty1, starty2
-            tri->p2.y, tri->p3.y,                           // endy1, endy2
-            tri->p1.x, tri->p3.x,                           // f1, f2
-            baryPre(tri->p1, tri->p2, tri->p3),             // bary
-            tri->p1.c,                                      // color
-            mode
-        );
-        return;
-    }
-
-    // Find 4th point to split the tri into flat top and flat bottom triangles
-    pixel_t p4;
-    p4.x = lerp(tri->p1.x, tri->p3.x,
-        (tri->p2.x - tri->p1.x) / (float)(tri->p3.x - tri->p1.x));
-    p4.y = tri->p2.y;
-    p4.c = tri->p1.c;
-
-    if (tri->p2.x > p4.x) swap<pixel_t>(&(tri->p2), &p4);
-
-    {   // Flat right
-        const pixel_t &fp1 = tri->p1;
-        pixel_t fp2 = tri->p2;
-        pixel_t fp3 = p4;
-        if (fp2.y > fp3.y) swap<pixel_t>(&(fp2), &(fp3));
-        renderTriCore(renderData,
-            minclipx, maxclipx,
-            minclipy, maxclipy,
-            (fp1.x > minclipx ? fp1.x : minclipx),  // startx
-            (fp3.x < maxclipx ? fp3.x : maxclipx),  // endx
-            fp1.y, fp2.y,                           // starty1, starty2
-            fp1.y, fp3.y,                           // endy1, endy2
-            fp1.x, fp3.x,                           // f1, f2
-            baryPre(fp1, fp2, fp3),                 // bary
-            tri->p1.c,                              // color
-            mode
-        );
-        return;
-    }
-
-    {   // Flat left
-        pixel_t fp1 = tri->p2;
-        pixel_t fp2 = p4;
-        const pixel_t &fp3 = tri->p3;
-        if (fp1.y > fp2.y) swap<pixel_t>(&(fp1), &(fp2));
-        renderTriCore(renderData,
-            minclipx, maxclipx,
-            minclipy, maxclipy,
-            (fp1.x > minclipx ? fp1.x : minclipx),  // startx
-            (fp3.x < maxclipx ? fp3.x : maxclipx),  // endx
-            fp1.y, fp3.y,                           // starty1, starty2
-            fp2.y, fp3.y,                           // endy1, endy2
-            fp1.x, fp3.x,                           // f1, f2
-            baryPre(fp1, fp2, fp3),                 // bary
-            tri->p1.c,                              // color
-            mode
-        );
-        return;
+        if (alphaBlend)
+        {
+            const range_t ry = inl_min(rY, clip.y);
+            for (position_t y = ry.min; y < ry.max; ++y)
+            {
+                const float f = (y - rY.min) / (float)(rY.max - rY.min);
+                const range_t rx =
+                    inl_min({lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
+                for (position_t x = rx.min; x < rx.max; ++x)
+                {
+                    screen.at(x, y) %= bary.a.c;
+                }
+            }
+        }
+        else
+        {
+            const range_t ry = inl_min(rY, clip.y);
+            for (position_t y = ry.min; y < ry.max; ++y)
+            {
+                const float f = (y - rY.min) / (float)(rY.max - rY.min);
+                const range_t rx =
+                    inl_min({lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
+                for (position_t x = rx.min; x < rx.max; ++x)
+                {
+                    screen.at(x, y) = bary.a.c;
+                }
+            }
+        }
     }
 }
 
-template<typename screenColType, typename texColType>
-void renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* idx_buffer, const ImDrawCmd* pcmd, renderData_t<screenColType, texColType>* renderData)
+template<typename SCREEN, typename COLOR>
+void renderTri(
+    texture_t<SCREEN>       &screen,
+    const texture_base_t    *tex,
+    const clip_t            &clip,
+    const range_t           &rY,
+    const range_t           &rX1,
+    const range_t           &rX2,
+    const bary_t<COLOR>     &bary,
+    const bool              uvBlend,
+    const bool              alphaBlend
+)
 {
-    for(unsigned int i = 0; i < pcmd->ElemCount; i += 3)
+    switch (tex == nullptr ? texture_type_t::NONE : tex->type)
+    {
+    case texture_type_t::ALPHA8:
+        renderTriCore(screen, *(texture_t<alpha8_t>*)tex, clip, rY, rX1, rX2, bary, alphaBlend);
+        break;
+
+    case texture_type_t::VALUE8:
+        renderTriCore(screen, *(texture_t<value8_t>*)tex, clip, rY, rX1, rX2, bary, alphaBlend);
+        break;
+
+    case texture_type_t::COLOR16:
+        renderTriCore(screen, *(texture_t<color16_t>*)tex, clip, rY, rX1, rX2, bary, alphaBlend);
+        break;
+
+    case texture_type_t::COLOR24:
+        renderTriCore(screen, *(texture_t<color24_t>*)tex, clip, rY, rX1, rX2, bary, alphaBlend);
+        break;
+
+    case texture_type_t::COLOR32:
+        renderTriCore(screen, *(texture_t<color32_t>*)tex, clip, rY, rX1, rX2, bary, alphaBlend);
+        break;
+
+    default:
+        renderTriCore(screen, clip, rY, rX1, rX2, bary, uvBlend, alphaBlend);
+        break;
+    }
+}
+
+template<typename SCREEN, typename COLOR>
+void renderTri(
+    texture_t<SCREEN>       &screen,
+    const texture_base_t    *tex,
+    const ImVec4            &clipRect,
+    triangle_t<COLOR>       &tri,
+    const bool              uvBlend,
+    const bool              alphaBlend
+)
+{
+    if (tri.p1.y > tri.p2.y) swap(&(tri.p1), &(tri.p2));
+    if (tri.p1.y > tri.p3.y) swap(&(tri.p1), &(tri.p3));
+    if (tri.p2.y > tri.p3.y) swap(&(tri.p2), &(tri.p3));
+
+    const clip_t clip = {
+        inl_min({clipRect.x, clipRect.z}, {0.0f, (position_t)screen.w}),
+        inl_min({clipRect.y, clipRect.w}, {0.0f, (position_t)screen.w})
+    };
+
+    if ((tri.p3.x < clip.x.min) ||
+        (tri.p1.x >= clip.x.max))
+        return;
+
+    if (tri.p2.y == tri.p3.y) // Flat bottom triangle
+    {
+        if (tri.p1.y == tri.p2.y) // Flat line
+        {
+            if (tri.p1.x > tri.p2.x) swap(&(tri.p1), &(tri.p2));
+            if (tri.p1.x > tri.p3.x) swap(&(tri.p1), &(tri.p3));
+            if (tri.p2.x > tri.p3.x) swap(&(tri.p2), &(tri.p3));
+
+            if (tri.p1.y < clip.x.min || tri.p1.y > clip.x.max) return;
+
+            renderTri(screen, tex, clip,
+                { tri.p1.y, tri.p1.y + 1 },
+                { tri.p1.x, tri.p3.x },
+                { tri.p1.x, tri.p3.x },
+                baryPre(tri.p1, tri.p2, tri.p3),
+                uvBlend, alphaBlend
+            );
+        }
+        else // Flat bottom triangle
+        {
+            if (tri.p2.x > tri.p3.x) swap(&(tri.p2), &(tri.p3));
+
+            renderTri(screen, tex, clip,
+                { tri.p1.y, tri.p3.y },
+                { tri.p1.x, tri.p1.x },
+                { tri.p2.x, tri.p3.x },
+                baryPre(tri.p1, tri.p2, tri.p3),
+                uvBlend, alphaBlend
+            );
+        }
+    }
+    else if (tri.p1.y == tri.p2.y) // Flat top triangle
+    {
+        if (tri.p1.x > tri.p2.x) swap(&(tri.p1), &(tri.p2));
+
+        renderTri(screen, tex, clip,
+            { tri.p1.y, tri.p3.y },
+            { tri.p1.x, tri.p2.x },
+            { tri.p3.x, tri.p3.x },
+            baryPre(tri.p1, tri.p2, tri.p3),
+            uvBlend, alphaBlend
+        );
+    }
+    else
+    {
+        // Find 4th point to split the tri into flat top and flat bottom triangles
+        pixel_t<COLOR> p4;
+        p4.x = lerp(tri.p1.x, tri.p3.x, (tri.p2.y - tri.p1.y) / (float)(tri.p3.y - tri.p1.y));
+        p4.y = tri.p2.y;
+        p4.c = tri.p1.c;
+
+        if (tri.p2.x > p4.x) swap(&(tri.p2), &p4);
+
+        renderTri(screen, tex, clip,
+            { tri.p1.y, tri.p2.y },
+            { tri.p1.x, tri.p1.x },
+            { tri.p3.x, p4.x },
+            baryPre(tri.p1, tri.p2, p4),
+            uvBlend, alphaBlend
+        );
+
+        renderTri(screen, tex, clip,
+            { tri.p2.y, tri.p3.y },
+            { tri.p2.x, p4.x },
+            { tri.p3.x, tri.p3.x },
+            baryPre(tri.p2, p4, tri.p3),
+            uvBlend, alphaBlend
+        );
+    }
+}
+
+template<typename SCREEN>
+void renderCommand(
+    texture_t<SCREEN> &screen,
+    const texture_base_t *texture,
+    const ImDrawVert *vtx_buffer,
+    const ImDrawIdx *idx_buffer,
+    const ImDrawCmd &pcmd
+)
+{
+    for(unsigned int i = 0; i < pcmd.ElemCount; i += 3)
     {
         const ImDrawVert* verts[] =
         {
@@ -915,7 +719,8 @@ void renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* idx_buffer, co
             &vtx_buffer[idx_buffer[i+2]]
         };
 
-        if (i < pcmd->ElemCount - 3)
+        // /*
+        if (i < pcmd.ElemCount - 3)
         {
             ImVec2 tlpos = verts[0]->pos;
             ImVec2 brpos = verts[0]->pos;
@@ -967,73 +772,104 @@ void renderCommand(const ImDrawVert* vtx_buffer, const ImDrawIdx* idx_buffer, co
 
             if (isRect)
             {
-                rectangle_t rect;
-                rect.p1.x = tlpos.x;
-                rect.p1.y = tlpos.y;
-                rect.p2.x = brpos.x;
-                rect.p2.y = brpos.y;
-                rect.p1.u = tluv.x;
-                rect.p1.v = tluv.y;
-                rect.p2.u = bruv.x;
-                rect.p2.v = bruv.y;
-                rect.p1.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
-                rect.p2.c.r = rect.p1.c.r;
-                rect.p1.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
-                rect.p2.c.g = rect.p1.c.g;
-                rect.p1.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
-                rect.p2.c.b = rect.p1.c.b;
-                rect.p1.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
-                rect.p2.c.a = rect.p1.c.a;
-                bool noUV = renderData->texture == NULL ||
-                    ((rect.p1.u == rect.p2.u) && (rect.p1.v == rect.p2.v));
-                bool flatCol = rect.p1.c == rect.p2.c;
-                renderRect<screenColType, texColType>(renderData, &rect,
-                    (render_t)((noUV ? render_t::NORMAL : render_t::TEXTURE) |
-                    (flatCol ? render_t::NORMAL : render_t::BLEND))
-                );
+                quad_t<SCREEN> quad;
+                quad.p1.x = tlpos.x;
+                quad.p1.y = tlpos.y;
+                quad.p2.x = brpos.x;
+                quad.p2.y = brpos.y;
+                quad.p1.u = tluv.x;
+                quad.p1.v = tluv.y;
+                quad.p2.u = bruv.x;
+                quad.p2.v = bruv.y;
+                quad.p1.c = SCREEN(color32_t(
+                    verts[0]->col >> IM_COL32_R_SHIFT,
+                    verts[0]->col >> IM_COL32_G_SHIFT,
+                    verts[0]->col >> IM_COL32_B_SHIFT,
+                    verts[0]->col >> IM_COL32_A_SHIFT
+                ));
+                quad.p2.c = quad.p1.c;
+
+                const bool noUV = (quad.p1.u == quad.p2.u) && (quad.p1.v == quad.p2.v);
+                const bool flatCol = noUV || (quad.p1.c == quad.p2.c);
+                const bool alphaBlend = true;
+
+                renderQuad(screen, noUV ? nullptr : texture, pcmd.ClipRect, quad, alphaBlend);
+
+                // switch (texture == nullptr || noUV ? texture_type_t::NONE : texture->type)
+                // {
+                //     case texture_type_t::ALPHA8:
+                //         renderQuad(screen, *(texture_t<alpha8_t>*)texture, pcmd.ClipRect, quad, alphaBlend);
+                //         break;
+                //     case texture_type_t::VALUE8:
+                //         renderQuad(screen, *(texture_t<value8_t>*)texture, pcmd.ClipRect, quad, alphaBlend);
+                //         break;
+                //     case texture_type_t::COLOR16:
+                //         renderQuad(screen, *(texture_t<color16_t>*)texture, pcmd.ClipRect, quad, alphaBlend);
+                //         break;
+                //     case texture_type_t::COLOR24:
+                //         renderQuad(screen, *(texture_t<color24_t>*)texture, pcmd.ClipRect, quad, alphaBlend);
+                //         break;
+                //     case texture_type_t::COLOR32:
+                //         renderQuad(screen, *(texture_t<color32_t>*)texture, pcmd.ClipRect, quad, alphaBlend);
+                //         break;
+                //     default:
+                //         renderQuad(screen, pcmd.ClipRect, quad, alphaBlend);
+                //         break;
+                // }
+
                 i += 3;
                 continue;
             }
         }
+        // */
 
-        triangle_t tri;
+        // /*
+        triangle_t<SCREEN> tri;
         tri.p1.x = verts[0]->pos.x;
         tri.p1.y = verts[0]->pos.y;
         tri.p1.u = verts[0]->uv.x;
         tri.p1.v = verts[0]->uv.y;
-        tri.p1.c.r = (verts[0]->col >> IM_COL32_R_SHIFT) & 0xFF;
-        tri.p1.c.g = (verts[0]->col >> IM_COL32_G_SHIFT) & 0xFF;
-        tri.p1.c.b = (verts[0]->col >> IM_COL32_B_SHIFT) & 0xFF;
-        tri.p1.c.a = (verts[0]->col >> IM_COL32_A_SHIFT) & 0xFF;
+        tri.p1.c = SCREEN(color32_t(
+            verts[0]->col >> IM_COL32_R_SHIFT,
+            verts[0]->col >> IM_COL32_G_SHIFT,
+            verts[0]->col >> IM_COL32_B_SHIFT,
+            verts[0]->col >> IM_COL32_A_SHIFT
+        ));
+
         tri.p2.x = verts[1]->pos.x;
         tri.p2.y = verts[1]->pos.y;
         tri.p2.u = verts[1]->uv.x;
         tri.p2.v = verts[1]->uv.y;
-        tri.p2.c.r = (verts[1]->col >> IM_COL32_R_SHIFT) & 0xFF;
-        tri.p2.c.g = (verts[1]->col >> IM_COL32_G_SHIFT) & 0xFF;
-        tri.p2.c.b = (verts[1]->col >> IM_COL32_B_SHIFT) & 0xFF;
-        tri.p2.c.a = (verts[1]->col >> IM_COL32_A_SHIFT) & 0xFF;
+        tri.p2.c = SCREEN(color32_t(
+            verts[1]->col >> IM_COL32_R_SHIFT,
+            verts[1]->col >> IM_COL32_G_SHIFT,
+            verts[1]->col >> IM_COL32_B_SHIFT,
+            verts[1]->col >> IM_COL32_A_SHIFT
+        ));
+
         tri.p3.x = verts[2]->pos.x;
         tri.p3.y = verts[2]->pos.y;
         tri.p3.u = verts[2]->uv.x;
         tri.p3.v = verts[2]->uv.y;
-        tri.p3.c.r = (verts[2]->col >> IM_COL32_R_SHIFT) & 0xFF;
-        tri.p3.c.g = (verts[2]->col >> IM_COL32_G_SHIFT) & 0xFF;
-        tri.p3.c.b = (verts[2]->col >> IM_COL32_B_SHIFT) & 0xFF;
-        tri.p3.c.a = (verts[2]->col >> IM_COL32_A_SHIFT) & 0xFF;
-        bool noUV = renderData->texture == NULL || (
-            (tri.p1.u == tri.p2.u) && (tri.p1.u == tri.p3.u) &&
-            (tri.p1.v == tri.p2.v) && (tri.p1.v == tri.p3.v));
-        bool flatCol = (tri.p1.c == tri.p2.c) && (tri.p1.c == tri.p3.c);
-        renderTri<screenColType, texColType>(renderData, &tri,
-            (render_t)((noUV ? render_t::NORMAL : render_t::TEXTURE) |
-            (flatCol ? render_t::NORMAL : render_t::BLEND))
-        );
+        tri.p3.c = SCREEN(color32_t(
+            verts[2]->col >> IM_COL32_R_SHIFT,
+            verts[2]->col >> IM_COL32_G_SHIFT,
+            verts[2]->col >> IM_COL32_B_SHIFT,
+            verts[2]->col >> IM_COL32_A_SHIFT
+        ));
+
+        const bool noUV = (tri.p1.u == tri.p2.u) && (tri.p1.u == tri.p3.u) &&
+                          (tri.p1.v == tri.p2.v) && (tri.p1.v == tri.p3.v);
+        const bool flatCol = noUV || (tri.p1.c == tri.p2.c) && (tri.p1.c == tri.p3.c);
+        const bool alphaBlend = true;
+
+        renderTri(screen, noUV ? nullptr : texture, pcmd.ClipRect, tri, !flatCol, alphaBlend);
+        // */
     }
 }
 
-template<typename screenColType>
-void renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen)
+template<typename SCREEN>
+void renderDrawLists(ImDrawData* drawData, texture_t<SCREEN> &screen)
 {
     ImGuiIO& io = ImGui::GetIO();
     int fbWidth = (int)(io.DisplaySize.x * io.DisplayFramebufferScale.x);
@@ -1050,20 +886,23 @@ void renderDrawLists(ImDrawData* drawData, screen_t<screenColType>* screen)
 
         for (int cmdi = 0; cmdi < cmdList->CmdBuffer.Size; cmdi++)
         {
-            const ImDrawCmd* pcmd = &cmdList->CmdBuffer[cmdi];
-            if (pcmd->UserCallback)
+            const ImDrawCmd &pcmd = cmdList->CmdBuffer[cmdi];
+            if (pcmd.UserCallback)
             {
-                pcmd->UserCallback(cmdList, pcmd);
+                pcmd.UserCallback(cmdList, &pcmd);
             }
             else
             {
-                texture_t<color8_t> *tex = (texture_t<color8_t>*)pcmd->TextureId;
-                renderData_t<screenColType, color8_t> renderData(screen, tex, pcmd->ClipRect);
-                renderCommand<screenColType, color8_t>(vtx_buffer, idx_buffer, pcmd, &renderData);
+                renderCommand(screen, (texture_base_t*)pcmd.TextureId, vtx_buffer, idx_buffer, pcmd);
             }
-            idx_buffer += pcmd->ElemCount;
+            idx_buffer += pcmd.ElemCount;
         }
     }
 }
+
+#undef INLINE_DEC
+#undef INLINE_DEF
+#undef INLINE
+#undef INLINE_TEMPLATE
 
 #endif
