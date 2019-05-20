@@ -144,7 +144,7 @@ void loop()
     //io.MouseDown[0] = mouse_button_0;
     //io.MouseDown[1] = mouse_button_1;
     //[0.0f - 1.0f]
-    io.NavFlags |= ImGuiNavFlags_EnableGamepad;
+    // io.NavFlags |= ImGuiNavFlags_EnableGamepad;
     io.NavInputs[ImGuiNavInput_Activate] = 0.0f;        // activate / open / toggle / tweak value       // e.g. Circle (PS4), A (Xbox), B (Switch), Space (Keyboard)
     io.NavInputs[ImGuiNavInput_Cancel] = 0.0f;          // cancel / close / exit                        // e.g. Cross    (PS4), B (Xbox), A (Switch), Escape (Keyboard)
     io.NavInputs[ImGuiNavInput_Input] = 0.0f;           // text input / on-screen keyboard              // e.g. Triang.(PS4), Y (Xbox), X (Switch), Return (Keyboard)
