@@ -82,7 +82,7 @@ void setup()
     fontAtlas.h = height;
 
     #ifdef PRINT_ATLAS
-    Serial.println("{");
+    Serial.println("uint8_t const fontAtlasPixels[] = {");
     int depth = 0;
     for(int y = 0; y < fontAtlas.h; y++)
     {
@@ -119,7 +119,7 @@ void setup()
             }
         }
     }
-    Serial.print("}");
+    Serial.print("};");
     #endif
 
     io.Fonts->ClearInputData();
