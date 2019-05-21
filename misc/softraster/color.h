@@ -1,15 +1,7 @@
-#ifndef COLOR_HPP
-#define COLOR_HPP
+#ifndef SOFTRASTER_COLOR_H
+#define SOFTRASTER_COLOR_H
 
-#ifdef ARDUINO
-#   pragma GCC optimize("-03")
-#   define INLINE_DEC(F) inline F __attribute__((always_inline))
-#else
-#   define INLINE_DEC(F) inline F
-#endif
-#define INLINE_DEF(F) inline F
-#define INLINE(F) INLINE_DEC(F); INLINE_DEF(F)
-#define INLINE_TEMPLATE(T, F) T INLINE_DEC(F); T INLINE_DEF(F)
+#include "defines.h"
 
 #define C16RMASK 0xF800
 #define C16GMASK 0x07E0
@@ -20,18 +12,22 @@
 #define C16B(C) ((C) & C16BMASK)
 
 // Linear interpolation functions
-INLINE_TEMPLATE(template<typename T>, T lerp(T a, T b, uint8_t f)) // [0, 255]
+// [0x00, 0xFF]
+template<typename T> INLINE_DEC(T lerp(T a, T b, uint8_t f));
+template<typename T> INLINE_DEF(T lerp(T a, T b, uint8_t f))
 {
-    if (a == b) return a;
-    if (f == 0x00) return a;
+    if      (a == b)    return a;
+    if      (f == 0x00) return a;
     else if (f == 0xFF) return b;
     return a + ((f * (b - a)) / 0xFF);
 }
 
-INLINE_TEMPLATE(template<typename T>, T lerp(T a, T b, float f)) // [0.0f, 1.0f]
+// [0.0f, 1.0f]
+template<typename T> INLINE_DEC(T lerp(T a, T b, float f));
+template<typename T> INLINE_DEF(T lerp(T a, T b, float f))
 {
-    if (a == b) return a;
-    if (f <= 0.0f) return a;
+    if      (a == b)    return a;
+    if      (f <= 0.0f) return a;
     else if (f >= 1.0f) return b;
     return a + (f * (b - a));
 }
@@ -534,9 +530,4 @@ inline color32_t operator%(color32_t lhs, const float rhs)
 #undef C16GMASK
 #undef C16BMASK
 
-#undef INLINE_DEC
-#undef INLINE_DEF
-#undef INLINE
-#undef INLINE_TEMPLATE
-
-#endif // COLOR_HPP
+#endif // SOFTRASTER_COLOR_H
