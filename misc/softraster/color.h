@@ -250,7 +250,7 @@ struct color16_alpha8_t
     color16_alpha8_t(const signed int val, const signed int alpha) : color(val), alpha(alpha) {}
     color16_alpha8_t(const unsigned int val, const unsigned int alpha) : color(val), alpha(alpha) {}
     color16_alpha8_t(const color16_t &val, const alpha8_t &alpha) : color(val), alpha(alpha) {}
-    color16_alpha8_t(const color16_alpha8_t &rhs) : color(rhs.color) {}
+    color16_alpha8_t(const color16_alpha8_t &rhs) : color(rhs.color), alpha(rhs.alpha) {}
 
     template<typename COLOR>
     explicit inline color16_alpha8_t(const COLOR &rhs) : color(rhs.RGB16()), alpha(rhs.A()) { }
