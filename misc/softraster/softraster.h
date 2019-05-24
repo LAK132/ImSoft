@@ -1,5 +1,5 @@
-#ifndef IMGUI_SOFTRASTER_H
-#define IMGUI_SOFTRASTER_H
+#ifndef SOFTRASTER_H
+#define SOFTRASTER_H
 
 #include "defines.h"
 #include "utils.h"
@@ -616,4 +616,4 @@ void renderDrawLists(ImDrawData* drawData, texture_t<SCREEN> &screen)
     }
 }
 
-#endif // IMGUI_SOFTRASTER_H
+#endif // SOFTRASTER_H
