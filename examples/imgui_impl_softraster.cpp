@@ -5,8 +5,6 @@ texture_base_t *Screen = nullptr;
 
 bool ImGui_ImplSoftraster_Init(texture_base_t *screen)
 {
-    ImGui::CreateContext();
-
     if (screen != nullptr)
     {
         Screen = screen;
@@ -27,8 +25,6 @@ void ImGui_ImplSoftraster_NewFrame()
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize.x = Screen->w;
     io.DisplaySize.y = Screen->h;
-
-    ImGui::NewFrame();
 }
 
 void ImGui_ImplSoftraster_RenderDrawData(ImDrawData* draw_data)
