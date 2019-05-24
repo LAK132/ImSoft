@@ -34,7 +34,7 @@ struct triangle_t
 };
 
 template<typename POS, typename COL>
-struct quad_t
+struct rectangle_t
 {
     pixel_t<POS, COL> p1, p2;
 };
@@ -46,6 +46,26 @@ inline void swap(T* tri1, T* tri2)
     memcpy(&temp, tri1, sizeof(T));
     memcpy(tri1, tri2, sizeof(T));
     memcpy(tri2, &temp, sizeof(T));
+}
+
+// [0x00, 0xFF]
+template<typename T> INLINE_DEC(T lerp(T a, T b, uint8_t f));
+template<typename T> INLINE_DEF(T lerp(T a, T b, uint8_t f))
+{
+    if      (a == b)    return a;
+    if      (f == 0x00) return a;
+    else if (f == 0xFF) return b;
+    return a + ((f * (b - a)) / 0xFF);
+}
+
+// [0.0f, 1.0f]
+template<typename T> INLINE_DEC(T lerp(T a, T b, float f));
+template<typename T> INLINE_DEF(T lerp(T a, T b, float f))
+{
+    if      (a == b)    return a;
+    if      (f <= 0.0f) return a;
+    else if (f >= 1.0f) return b;
+    return a + (f * (b - a));
 }
 
 template<typename T> INLINE_DEC(T inl_min(const T a, const T b));

@@ -9,11 +9,11 @@
 
 template<typename POS, typename SCREEN, typename TEXTURE, typename COLOR>
 void renderQuadCore(
-    texture_t<SCREEN>           &screen,
-    const texture_t<TEXTURE>    &tex,
-    const clip_t<POS>           &clip,
-    const quad_t<POS, COLOR>    &quad,
-    const bool                  alphaBlend
+    texture_t<SCREEN>               &screen,
+    const texture_t<TEXTURE>        &tex,
+    const clip_t<POS>               &clip,
+    const rectangle_t<POS, COLOR>   &quad,
+    const bool                      alphaBlend
 )
 {
     if ((quad.p2.x < clip.x.min) ||
@@ -48,7 +48,7 @@ void renderQuadCore(
             {
                 for (POS x = rx.min; x < rx.max; ++x)
                 {
-                    screen.at(x, y) %= tex.at(x + u, y + v) * quad.p1.c;
+                    screen.at(x, y) %= quad.p1.c * tex.at(x + u, y + v);
                 }
             }
         }
@@ -58,7 +58,7 @@ void renderQuadCore(
             {
                 for (POS x = rx.min; x < rx.max; ++x)
                 {
-                    screen.at(x, y) = tex.at(x + u, y + v) * quad.p1.c;
+                    screen.at(x, y) = quad.p1.c * tex.at(x + u, y + v);
                 }
             }
         }
@@ -73,7 +73,7 @@ void renderQuadCore(
             {
                 for (POS x = rx.min; x < rx.max; ++x)
                 {
-                    screen.at(x, y) %= tex.at(x + u, y + v) * quad.p1.c;
+                    screen.at(x, y) %= quad.p1.c * tex.at(x + u, y + v);
                     v += dvDy;
                 }
                 u += duDx;
@@ -85,7 +85,7 @@ void renderQuadCore(
             {
                 for (POS x = rx.min; x < rx.max; ++x)
                 {
-                    screen.at(x, y) = tex.at(x + u, y + v) * quad.p1.c;
+                    screen.at(x, y) = quad.p1.c * tex.at(x + u, y + v);
                     v += dvDy;
                 }
                 u += duDx;
@@ -96,10 +96,10 @@ void renderQuadCore(
 
 template<typename POS, typename SCREEN, typename COLOR>
 void renderQuadCore(
-    texture_t<SCREEN>           &screen,
-    const clip_t<POS>           &clip,
-    const quad_t<POS, COLOR>    &quad,
-    const bool                  alphaBlend
+    texture_t<SCREEN>               &screen,
+    const clip_t<POS>               &clip,
+    const rectangle_t<POS, COLOR>   &quad,
+    const bool                      alphaBlend
 )
 {
     if ((quad.p2.x < clip.x.min) ||
@@ -135,11 +135,11 @@ void renderQuadCore(
 
 template<typename POS, typename SCREEN, typename COLOR>
 void renderQuad(
-    texture_t<SCREEN>           &screen,
-    const texture_base_t        *tex,
-    const clip_t<POS>           &clip,
-    const quad_t<POS, COLOR>    &quad,
-    const bool                  alphaBlend
+    texture_t<SCREEN>               &screen,
+    const texture_base_t            *tex,
+    const clip_t<POS>               &clip,
+    const rectangle_t<POS, COLOR>   &quad,
+    const bool                      alphaBlend
 )
 {
     switch (tex == nullptr ? texture_type_t::NONE : tex->type)
@@ -198,7 +198,7 @@ void renderTriCore(
                 POS u = (POS)((p.u * tex.w) + 0.5f) % tex.w;
                 POS v = (POS)((p.v * tex.h) + 0.5f) % tex.h;
 
-                screen.at(x, y) %= tex.at(u, v) * bary.a.c;
+                screen.at(x, y) %= bary.a.c * tex.at(u, v);
             }
         }
     }
@@ -218,7 +218,7 @@ void renderTriCore(
                 POS u = (POS)((p.u * tex.w) + 0.5f) % tex.w;
                 POS v = (POS)((p.v * tex.h) + 0.5f) % tex.h;
 
-                screen.at(x, y) = tex.at(u, v) * bary.a.c;
+                screen.at(x, y) = bary.a.c * tex.at(u, v);
             }
         }
     }
@@ -445,9 +445,7 @@ void renderCommand(
 {
     const clip_t<POS> clip = {
         { inl_max((POS)pcmd.ClipRect.x, (POS)0), inl_max((POS)pcmd.ClipRect.z, (POS)screen.w) },
-        { inl_min((POS)pcmd.ClipRect.y, (POS)0), inl_min((POS)pcmd.ClipRect.w, (POS)screen.h) },
-        // inl_max({(POS)pcmd.ClipRect.x, (POS)pcmd.ClipRect.z}, {(POS)0, (POS)screen.w}),
-        // inl_min({(POS)pcmd.ClipRect.y, (POS)pcmd.ClipRect.w}, {(POS)0, (POS)screen.h})
+        { inl_min((POS)pcmd.ClipRect.y, (POS)0), inl_min((POS)pcmd.ClipRect.w, (POS)screen.h) }
     };
 
     for(unsigned int i = 0; i < pcmd.ElemCount; i += 3)
@@ -511,8 +509,7 @@ void renderCommand(
 
             if (isRect)
             {
-                quad_t<POS, SCREEN> quad;
-                // quad_t<POS, color32_t> quad;
+                rectangle_t<POS, SCREEN> quad;
                 quad.p1.x = tlpos.x;
                 quad.p1.y = tlpos.y;
                 quad.p2.x = brpos.x;
@@ -530,7 +527,6 @@ void renderCommand(
                 quad.p2.c = quad.p1.c;
 
                 const bool noUV = (quad.p1.u == quad.p2.u) && (quad.p1.v == quad.p2.v);
-                const bool flatCol = noUV || (quad.p1.c == quad.p2.c);
                 const bool alphaBlend = true;
 
                 renderQuad(screen, noUV ? nullptr : texture, clip, quad, alphaBlend);
@@ -577,7 +573,7 @@ void renderCommand(
 
         const bool noUV = (tri.p1.u == tri.p2.u) && (tri.p1.u == tri.p3.u) &&
                           (tri.p1.v == tri.p2.v) && (tri.p1.v == tri.p3.v);
-        const bool flatCol = noUV || (tri.p1.c == tri.p2.c) && (tri.p1.c == tri.p3.c);
+        const bool flatCol = noUV || ((tri.p1.c == tri.p2.c) && (tri.p1.c == tri.p3.c));
         const bool alphaBlend = true;
 
         renderTri(screen, noUV ? nullptr : texture, clip, tri, !flatCol, alphaBlend);
