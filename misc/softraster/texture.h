@@ -6,12 +6,20 @@
 
 enum texture_type_t { NONE = 0, ALPHA8, VALUE8, COLOR16, COLOR24, COLOR32 };
 
-template<typename T> texture_type_t TextureType() { return NONE; }
-template<> texture_type_t TextureType<alpha8_t>() { return ALPHA8; }
-template<> texture_type_t TextureType<value8_t>() { return VALUE8; }
-template<> texture_type_t TextureType<color16_t>() { return COLOR16; }
-template<> texture_type_t TextureType<color24_t>() { return COLOR24; }
-template<> texture_type_t TextureType<color32_t>() { return COLOR32; }
+#if defined(__cplusplus) && __cplusplus >= 201103L
+#   define INLINE_CONSTEXPR constexpr
+#else
+#   define INLINE_CONSTEXPR inline
+#endif
+
+template<typename T> INLINE_CONSTEXPR texture_type_t TextureType() { return NONE; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<alpha8_t>() { return ALPHA8; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<value8_t>() { return VALUE8; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<color16_t>() { return COLOR16; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<color24_t>() { return COLOR24; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<color32_t>() { return COLOR32; }
+
+#undef INLINE_CONSTEXPR
 
 struct texture_base_t
 {
@@ -20,12 +28,12 @@ struct texture_base_t
     size_t w = 0, h = 0, size = 0;
     bool needFree = true;
 
-    void clear()
+    inline void clear()
     {
         memset(pixels, 0, w * h * size);
     }
 
-    ~texture_base_t()
+    inline ~texture_base_t()
     {
         if (needFree && pixels != nullptr)
             free(pixels);
@@ -35,7 +43,7 @@ struct texture_base_t
 template<typename COLOR>
 struct texture_t : public texture_base_t
 {
-    void init(size_t x, size_t y)
+    inline void init(size_t x, size_t y)
     {
         if (needFree && pixels != nullptr)
             free(pixels);
@@ -47,7 +55,7 @@ struct texture_t : public texture_base_t
         type = TextureType<COLOR>();
     }
 
-    void init(size_t x, size_t y, COLOR *data)
+    inline void init(size_t x, size_t y, COLOR *data)
     {
         if (needFree && pixels != nullptr)
             free(pixels);
