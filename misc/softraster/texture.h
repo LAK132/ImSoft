@@ -4,7 +4,7 @@
 #include "defines.h"
 #include "color.h"
 
-enum texture_type_t { NONE = 0, ALPHA8, VALUE8, COLOR16, COLOR24, COLOR32 };
+enum class texture_type_t { NONE = 0, ALPHA8, VALUE8, COLOR16, COLOR24, COLOR32 };
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
 #   define INLINE_CONSTEXPR constexpr
@@ -12,18 +12,18 @@ enum texture_type_t { NONE = 0, ALPHA8, VALUE8, COLOR16, COLOR24, COLOR32 };
 #   define INLINE_CONSTEXPR inline
 #endif
 
-template<typename T> INLINE_CONSTEXPR texture_type_t TextureType() { return NONE; }
-template<> INLINE_CONSTEXPR texture_type_t TextureType<alpha8_t>() { return ALPHA8; }
-template<> INLINE_CONSTEXPR texture_type_t TextureType<value8_t>() { return VALUE8; }
-template<> INLINE_CONSTEXPR texture_type_t TextureType<color16_t>() { return COLOR16; }
-template<> INLINE_CONSTEXPR texture_type_t TextureType<color24_t>() { return COLOR24; }
-template<> INLINE_CONSTEXPR texture_type_t TextureType<color32_t>() { return COLOR32; }
+template<typename T> INLINE_CONSTEXPR texture_type_t TextureType() { return texture_type_t::NONE; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<alpha8_t>() { return texture_type_t::ALPHA8; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<value8_t>() { return texture_type_t::VALUE8; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<color16_t>() { return texture_type_t::COLOR16; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<color24_t>() { return texture_type_t::COLOR24; }
+template<> INLINE_CONSTEXPR texture_type_t TextureType<color32_t>() { return texture_type_t::COLOR32; }
 
 #undef INLINE_CONSTEXPR
 
 struct texture_base_t
 {
-    texture_type_t type = NONE;
+    texture_type_t type = texture_type_t::NONE;
     void *pixels = nullptr;
     size_t w = 0, h = 0, size = 0;
     bool needFree = true;

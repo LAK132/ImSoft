@@ -35,23 +35,23 @@ void ImGui_ImplSoftraster_RenderDrawData(ImDrawData* draw_data)
 
     switch (Screen->type)
     {
-    case ALPHA8:
+    case texture_type_t::ALPHA8:
         renderDrawLists<int32_t>(draw_data, *reinterpret_cast<texture_alpha8_t*>(Screen));
         break;
 
-    case VALUE8:
+    case texture_type_t::VALUE8:
         renderDrawLists<int32_t>(draw_data, *reinterpret_cast<texture_value8_t*>(Screen));
         break;
 
-    case COLOR16:
+    case texture_type_t::COLOR16:
         renderDrawLists<int32_t>(draw_data, *reinterpret_cast<texture_color16_t*>(Screen));
         break;
 
-    case COLOR24:
+    case texture_type_t::COLOR24:
         renderDrawLists<int32_t>(draw_data, *reinterpret_cast<texture_color24_t*>(Screen));
         break;
 
-    case COLOR32:
+    case texture_type_t::COLOR32:
         renderDrawLists<int32_t>(draw_data, *reinterpret_cast<texture_color32_t*>(Screen));
         break;
 
