@@ -2,7 +2,7 @@
 #define SOFTRASTER_UTILS_H
 
 #ifdef ARDUINO
-#   pragma GCC optimize("-03")
+// #   pragma GCC optimize("-03")
 #endif
 
 #include "defines.h"

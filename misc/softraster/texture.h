@@ -30,7 +30,16 @@ struct texture_base_t
 
     inline void clear()
     {
-        memset(pixels, 0, w * h * size);
+        if (pixels != nullptr)
+            memset(pixels, 0, w * h * size);
+    }
+
+    inline void empty()
+    {
+        if (needFree && pixels != nullptr)
+            free(pixels);
+        needFree = false;
+        pixels = nullptr;
     }
 
     inline ~texture_base_t()
@@ -67,16 +76,22 @@ struct texture_t : public texture_base_t
         type = TextureType<COLOR>();
     }
 
+    static COLOR bad;
     INLINE_DEC(COLOR &at(size_t x, size_t y))
     {
+        if (x > w || y > h) return bad;
         return reinterpret_cast<COLOR*>(pixels)[x + (w * y)];
     }
 
     INLINE_DEC(const COLOR &at(size_t x, size_t y) const)
     {
+        if (x > w || y > h) return bad;
         return reinterpret_cast<COLOR*>(pixels)[x + (w * y)];
     }
 };
+
+template<typename COLOR>
+COLOR texture_t<COLOR>::bad;
 
 using texture_alpha8_t = texture_t<alpha8_t>;
 using texture_value8_t = texture_t<value8_t>;
