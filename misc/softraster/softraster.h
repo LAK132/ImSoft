@@ -22,19 +22,30 @@ void renderQuadCore(
         (quad.p1.y >= clip.y.max))
         return;
 
-    const range_t<POS> rx = inl_min({quad.p1.x, quad.p2.x}, clip.x);
-    const range_t<POS> ry = inl_min({quad.p1.y, quad.p2.y}, clip.y);
+    const range_t<POS> qx = {quad.p1.x, quad.p2.x};
+    const range_t<POS> qy = {quad.p1.y, quad.p2.y};
 
-    POS p1u = (POS)((quad.p1.u * tex.w) + 0.5f) % tex.w;
-    POS p1v = (POS)((quad.p1.v * tex.h) + 0.5f) % tex.h;
-    POS p2u = (POS)((quad.p2.u * tex.w) + 0.5f) % tex.w;
-    POS p2v = (POS)((quad.p2.v * tex.h) + 0.5f) % tex.h;
+    const range_t<float> qu = {
+        inl_max((float)quad.p1.u * tex.w, 0.0f),
+        inl_min((float)quad.p2.u * tex.w, (float)tex.w)
+    };
 
-    const float duDx = (float)(p2u - p1u) / (float)(quad.p2.x - quad.p1.x);
-    const float dvDy = (float)(p2v - p1v) / (float)(quad.p2.y - quad.p1.y);
+    const range_t<float> qv = {
+        inl_max((float)quad.p1.v * tex.h, 0.0f),
+        inl_min((float)quad.p2.v * tex.h, (float)tex.h)
+    };
 
-    const float startu = p1u + (duDx * (float)(rx.min - quad.p1.x > 0 ? rx.min - quad.p1.x : 0));
-    const float startv = p1v + (dvDy * (float)(ry.min - quad.p1.y > 0 ? ry.min - quad.p1.y : 0));
+    const range_t<POS> rx = inl_min(qx, clip.x);
+    const range_t<POS> ry = inl_min(qy, clip.y);
+
+    const float duDx = (qu.max - qu.min) / (qx.max - qx.min);
+    const float dvDy = (qv.max - qv.min) / (qy.max - qy.min);
+
+    const float xoffset = (float)rx.min - (float)qx.min;
+    const float yoffset = (float)ry.min - (float)qy.min;
+
+    const float startu = qu.min + (xoffset > 0 ? duDx * xoffset : 0);
+    const float startv = qv.min + (yoffset > 0 ? dvDy * yoffset : 0);
 
     bool blit = ((duDx == 1.0f) && (dvDy == 1.0f));
 
@@ -65,30 +76,40 @@ void renderQuadCore(
     }
     else
     {
-        float u = startu;
-        float v = startv;
         if (alphaBlend)
         {
-            for (POS y = ry.min; y < ry.max; ++y)
+            float v = startv;
+            POS y = ry.min;
+            while (y < ry.max)
             {
-                for (POS x = rx.min; x < rx.max; ++x)
+                float u = startu;
+                POS x = rx.min;
+                while (x < rx.max)
                 {
-                    screen.at(x, y) %= quad.p1.c * tex.at(x + u, y + v);
-                    v += dvDy;
+                    screen.at(x, y) %= quad.p1.c * tex.at(u, v);
+                    ++x;
+                    u += duDx;
                 }
-                u += duDx;
+                ++y;
+                v += dvDy;
             }
         }
         else
         {
-            for (POS y = ry.min; y < ry.max; ++y)
+            float v = startv;
+            POS y = ry.min;
+            while (y < ry.max)
             {
-                for (POS x = rx.min; x < rx.max; ++x)
+                float u = startu;
+                POS x = rx.min;
+                while (x < rx.max)
                 {
-                    screen.at(x, y) = quad.p1.c * tex.at(x + u, y + v);
-                    v += dvDy;
+                    screen.at(x, y) = quad.p1.c * tex.at(u, v);
+                    ++x;
+                    u += duDx;
                 }
-                u += duDx;
+                ++y;
+                v += dvDy;
             }
         }
     }
@@ -444,8 +465,14 @@ void renderCommand(
 )
 {
     const clip_t<POS> clip = {
-        { inl_max((POS)pcmd.ClipRect.x, (POS)0), inl_max((POS)pcmd.ClipRect.z, (POS)screen.w) },
-        { inl_min((POS)pcmd.ClipRect.y, (POS)0), inl_min((POS)pcmd.ClipRect.w, (POS)screen.h) }
+        {
+            inl_max((POS)pcmd.ClipRect.x, (POS)0),
+            inl_max((POS)pcmd.ClipRect.z, (POS)screen.w)
+        },
+        {
+            inl_min((POS)pcmd.ClipRect.y, (POS)0),
+            inl_min((POS)pcmd.ClipRect.w, (POS)screen.h)
+        }
     };
 
     for(unsigned int i = 0; i < pcmd.ElemCount; i += 3)
@@ -497,10 +524,14 @@ void renderCommand(
             bool isRect = true;
             for (int v = 0; v < 3; v++)
             {
-                if (((nextVerts[v]->pos.x != tlpos.x) && (nextVerts[v]->pos.x != brpos.x)) ||
-                    ((nextVerts[v]->pos.y != tlpos.y) && (nextVerts[v]->pos.y != brpos.y)) ||
-                    ((nextVerts[v]->uv.x != tluv.x) && (nextVerts[v]->uv.x != bruv.x)) ||
-                    ((nextVerts[v]->uv.y != tluv.y) && (nextVerts[v]->uv.y != bruv.y)))
+                if (((nextVerts[v]->pos.x != tlpos.x) &&
+                     (nextVerts[v]->pos.x != brpos.x)) ||
+                    ((nextVerts[v]->pos.y != tlpos.y) &&
+                     (nextVerts[v]->pos.y != brpos.y)) ||
+                    ((nextVerts[v]->uv.x != tluv.x) &&
+                     (nextVerts[v]->uv.x != bruv.x)) ||
+                    ((nextVerts[v]->uv.y != tluv.y) &&
+                     (nextVerts[v]->uv.y != bruv.y)))
                 {
                     isRect = false;
                     break;
@@ -605,7 +636,12 @@ void renderDrawLists(ImDrawData* drawData, texture_t<SCREEN> &screen)
             }
             else
             {
-                renderCommand<POS>(screen, reinterpret_cast<const texture_base_t*>(pcmd.TextureId), vtx_buffer, idx_buffer, pcmd);
+                renderCommand<POS>(
+                    screen,
+                    reinterpret_cast<const texture_base_t*>(pcmd.TextureId),
+                    vtx_buffer,
+                    idx_buffer,
+                    pcmd);
             }
             idx_buffer += pcmd.ElemCount;
         }
