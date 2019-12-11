@@ -28,6 +28,38 @@ struct texture_base_t
     size_t w = 0, h = 0, size = 0;
     bool needFree = true;
 
+    texture_base_t() = default;
+
+    texture_base_t(texture_base_t &&other)
+    {
+        pixels = other.pixels;
+        needFree = other.needFree;
+        w = other.w;
+        h = other.h;
+        size = other.size;
+        type = other.type;
+
+        other.pixels = nullptr;
+    }
+
+    texture_base_t(const texture_base_t &) = delete;
+
+    texture_base_t& operator=(texture_base_t &&other)
+    {
+        if (needFree && pixels != nullptr)
+            free(pixels);
+
+        pixels = other.pixels;
+        needFree = other.needFree;
+        w = other.w;
+        h = other.h;
+        size = other.size;
+        type = other.type;
+
+        other.pixels = nullptr;
+        return *this;
+    }
+
     inline void clear()
     {
         if (pixels != nullptr)
@@ -74,6 +106,19 @@ struct texture_t : public texture_base_t
         pixels = data;
         needFree = false;
         type = TextureType<COLOR>();
+    }
+
+    inline void copy(size_t x, size_t y, COLOR *data)
+    {
+        if (needFree && pixels != nullptr)
+            free(pixels);
+        w = x;
+        h = y;
+        size = sizeof(COLOR);
+        pixels = malloc(w * y * size);
+        needFree = true;
+        type = TextureType<COLOR>();
+        memcpy(pixels, data, w * y * size);
     }
 
     static COLOR bad;
