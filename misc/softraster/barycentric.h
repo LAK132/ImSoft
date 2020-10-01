@@ -6,7 +6,8 @@
 template<typename POS, typename COL>
 struct bary_t
 {
-  pixel_t<POS, COL> a, b, c, p0, p1;
+  point_t<POS> p0, p1;
+  pixel_t<POS, COL> a, b, c;
   POS d00, d01, d11;
   float denom;
 };
@@ -18,7 +19,7 @@ inline bary_t<POS, COL> baryPre(const pixel_t<POS, COL> &a,
 {
   bary_t<POS, COL> bary;
   bary.p0.x  = b.x - a.x;
-  bary.p0.y  = b.y - a.x;
+  bary.p0.y  = b.y - a.y;
   bary.p1.x  = c.x - a.x;
   bary.p1.y  = c.y - a.y;
   bary.d00   = dot(bary.p0, bary.p0);
@@ -77,4 +78,4 @@ inline void barycentricUVCol(pixel_t<POS, COL> &p,
   p.c     = (bary.a.c * u) + (bary.b.c * v) + (bary.c.c * w);
 }
 
-#endif // SOFTRASTER_BARYCENTRIC_H
+#endif

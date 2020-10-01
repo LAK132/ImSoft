@@ -7,7 +7,6 @@
 #include "texture.h"
 #include "utils.h"
 
-
 template<typename POS, typename SCREEN, typename TEXTURE, typename COLOR>
 void renderQuadCore(texture_t<SCREEN> &screen,
                     const texture_t<TEXTURE> &tex,
@@ -196,57 +195,60 @@ void renderQuad(texture_t<SCREEN> &screen,
   }
 }
 
+template<typename POS, typename COLOR, typename TEXTURE>
+point_t<POS> texCoord(const pixel_t<POS, COLOR> &p,
+                      const texture_t<TEXTURE> &tex)
+{
+  return {mod((POS)((p.u * tex.w) + 0.5f), (POS)tex.w),
+          mod((POS)((p.v * tex.h) + 0.5f), (POS)tex.h)};
+}
+
 template<typename POS, typename SCREEN, typename TEXTURE, typename COLOR>
 void renderTriCore(texture_t<SCREEN> &screen,
                    const texture_t<TEXTURE> &tex,
                    const clip_t<POS> &clip,
                    const range_t<POS> &rY,
-                   const range_t<POS> &rX1,
-                   const range_t<POS> &rX2,
+                   const range_t<POS> &rX,
                    const bary_t<POS, COLOR> &bary,
                    const bool alphaBlend)
 {
+  const range_t<size_t> ry = {(size_t)inl_max(rY.min, clip.y.min),
+                              (size_t)inl_min(rY.max, clip.y.max)};
+  const range_t<size_t> rx = {(size_t)inl_max(rX.min, clip.x.min),
+                              (size_t)inl_min(rX.max, clip.x.max)};
   if (alphaBlend)
   {
-    const range_t<POS> ry = inl_min(rY, clip.y);
-    for (POS y = ry.min; y < ry.max; ++y)
+    for (size_t y = ry.min; y < ry.max; ++y)
     {
-      const float f         = (y - rY.min) / (float)(rY.max - rY.min);
-      const range_t<POS> rx = inl_min(
-        {lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
-      for (POS x = rx.min; x < rx.max; ++x)
+      for (size_t x = rx.min; x < rx.max; ++x)
       {
+        if (!triangle_hit(bary, x, y)) continue;
         pixel_t<POS, COLOR> p;
         p.x = x;
         p.y = y;
         barycentricUV(p, bary);
 
-        POS u = (POS)((p.u * tex.w) + 0.5f) % tex.w;
-        POS v = (POS)((p.v * tex.h) + 0.5f) % tex.h;
+        point_t<POS> coord = texCoord(p, tex);
 
-        screen.at(x, y) %= bary.a.c * tex.at(u, v);
+        screen.at(x, y) %= bary.a.c * tex.at(coord.x, coord.y);
       }
     }
   }
   else
   {
-    const range_t<POS> ry = inl_min(rY, clip.y);
-    for (POS y = ry.min; y < ry.max; ++y)
+    for (size_t y = ry.min; y < ry.max; ++y)
     {
-      const float f         = (y - rY.min) / (float)(rY.max - rY.min);
-      const range_t<POS> rx = inl_min(
-        {lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
-      for (POS x = rx.min; x < rx.max; ++x)
+      for (size_t x = rx.min; x < rx.max; ++x)
       {
+        if (!triangle_hit(bary, x, y)) continue;
         pixel_t<POS, COLOR> p;
         p.x = x;
         p.y = y;
         barycentricUV(p, bary);
 
-        POS u = (POS)((p.u * tex.w) + 0.5f) % tex.w;
-        POS v = (POS)((p.v * tex.h) + 0.5f) % tex.h;
+        point_t<POS> coord = texCoord(p, tex);
 
-        screen.at(x, y) = bary.a.c * tex.at(u, v);
+        screen.at(x, y) = bary.a.c * tex.at(coord.x, coord.y);
       }
     }
   }
@@ -256,24 +258,25 @@ template<typename POS, typename SCREEN, typename COLOR>
 void renderTriCore(texture_t<SCREEN> &screen,
                    const clip_t<POS> &clip,
                    const range_t<POS> &rY,
-                   const range_t<POS> &rX1,
-                   const range_t<POS> &rX2,
+                   const range_t<POS> &rX,
                    const bary_t<POS, COLOR> &bary,
                    const bool uvBlend,
                    const bool alphaBlend)
 {
+  const range_t<size_t> ry = {(size_t)inl_max(rY.min, clip.y.min),
+                              (size_t)inl_min(rY.max, clip.y.max)};
+  const range_t<size_t> rx = {(size_t)inl_max(rX.min, clip.x.min),
+                              (size_t)inl_min(rX.max, clip.x.max)};
+
   if (uvBlend)
   {
     if (alphaBlend)
     {
-      const range_t<POS> ry = inl_min(rY, clip.y);
-      for (POS y = ry.min; y < ry.max; ++y)
+      for (size_t y = ry.min; y < ry.max; ++y)
       {
-        const float f         = (y - rY.min) / (float)(rY.max - rY.min);
-        const range_t<POS> rx = inl_min(
-          {lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
-        for (POS x = rx.min; x < rx.max; ++x)
+        for (size_t x = rx.min; x < rx.max; ++x)
         {
+          if (!triangle_hit(bary, x, y)) continue;
           pixel_t<POS, COLOR> p;
           p.x = x;
           p.y = y;
@@ -284,14 +287,11 @@ void renderTriCore(texture_t<SCREEN> &screen,
     }
     else
     {
-      const range_t<POS> ry = inl_min(rY, clip.y);
-      for (POS y = ry.min; y < ry.max; ++y)
+      for (size_t y = ry.min; y < ry.max; ++y)
       {
-        const float f         = (y - rY.min) / (float)(rY.max - rY.min);
-        const range_t<POS> rx = inl_min(
-          {lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
-        for (POS x = rx.min; x < rx.max; ++x)
+        for (size_t x = rx.min; x < rx.max; ++x)
         {
+          if (!triangle_hit(bary, x, y)) continue;
           pixel_t<POS, COLOR> p;
           p.x = x;
           p.y = y;
@@ -305,28 +305,22 @@ void renderTriCore(texture_t<SCREEN> &screen,
   {
     if (alphaBlend)
     {
-      const range_t<POS> ry = inl_min(rY, clip.y);
-      for (POS y = ry.min; y < ry.max; ++y)
+      for (size_t y = ry.min; y < ry.max; ++y)
       {
-        const float f         = (y - rY.min) / (float)(rY.max - rY.min);
-        const range_t<POS> rx = inl_min(
-          {lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
-        for (POS x = rx.min; x < rx.max; ++x)
+        for (size_t x = rx.min; x < rx.max; ++x)
         {
+          if (!triangle_hit(bary, x, y)) continue;
           screen.at(x, y) %= bary.a.c;
         }
       }
     }
     else
     {
-      const range_t<POS> ry = inl_min(rY, clip.y);
-      for (POS y = ry.min; y < ry.max; ++y)
+      for (size_t y = ry.min; y < ry.max; ++y)
       {
-        const float f         = (y - rY.min) / (float)(rY.max - rY.min);
-        const range_t<POS> rx = inl_min(
-          {lerp(rX1.min, rX2.min, f), lerp(rX1.max, rX2.max, f)}, clip.x);
-        for (POS x = rx.min; x < rx.max; ++x)
+        for (size_t x = rx.min; x < rx.max; ++x)
         {
+          if (!triangle_hit(bary, x, y)) continue;
           screen.at(x, y) = bary.a.c;
         }
       }
@@ -339,8 +333,7 @@ void renderTri(texture_t<SCREEN> &screen,
                const texture_base_t *tex,
                const clip_t<POS> &clip,
                const range_t<POS> &rY,
-               const range_t<POS> &rX1,
-               const range_t<POS> &rX2,
+               const range_t<POS> &rX,
                const bary_t<POS, COLOR> &bary,
                const bool uvBlend,
                const bool alphaBlend)
@@ -352,8 +345,7 @@ void renderTri(texture_t<SCREEN> &screen,
                     *reinterpret_cast<const texture_alpha8_t *>(tex),
                     clip,
                     rY,
-                    rX1,
-                    rX2,
+                    rX,
                     bary,
                     alphaBlend);
       break;
@@ -363,8 +355,7 @@ void renderTri(texture_t<SCREEN> &screen,
                     *reinterpret_cast<const texture_value8_t *>(tex),
                     clip,
                     rY,
-                    rX1,
-                    rX2,
+                    rX,
                     bary,
                     alphaBlend);
       break;
@@ -374,8 +365,7 @@ void renderTri(texture_t<SCREEN> &screen,
                     *reinterpret_cast<const texture_color16_t *>(tex),
                     clip,
                     rY,
-                    rX1,
-                    rX2,
+                    rX,
                     bary,
                     alphaBlend);
       break;
@@ -385,8 +375,7 @@ void renderTri(texture_t<SCREEN> &screen,
                     *reinterpret_cast<const texture_color24_t *>(tex),
                     clip,
                     rY,
-                    rX1,
-                    rX2,
+                    rX,
                     bary,
                     alphaBlend);
       break;
@@ -396,14 +385,13 @@ void renderTri(texture_t<SCREEN> &screen,
                     *reinterpret_cast<const texture_color32_t *>(tex),
                     clip,
                     rY,
-                    rX1,
-                    rX2,
+                    rX,
                     bary,
                     alphaBlend);
       break;
 
     default:
-      renderTriCore(screen, clip, rY, rX1, rX2, bary, uvBlend, alphaBlend);
+      renderTriCore(screen, clip, rY, rX, bary, uvBlend, alphaBlend);
       break;
   }
 }
@@ -416,93 +404,16 @@ void renderTri(texture_t<SCREEN> &screen,
                const bool uvBlend,
                const bool alphaBlend)
 {
-  if (tri.p1.y > tri.p2.y) swap(&(tri.p1), &(tri.p2));
-  if (tri.p1.y > tri.p3.y) swap(&(tri.p1), &(tri.p3));
-  if (tri.p2.y > tri.p3.y) swap(&(tri.p2), &(tri.p3));
-
-  if ((tri.p3.x < clip.x.min) || (tri.p1.x >= clip.x.max)) return;
-
-  if (tri.p2.y == tri.p3.y) // Flat bottom triangle
-  {
-    if (tri.p1.y == tri.p2.y) // Flat line
-    {
-      if (tri.p1.x > tri.p2.x) swap(&(tri.p1), &(tri.p2));
-      if (tri.p1.x > tri.p3.x) swap(&(tri.p1), &(tri.p3));
-      if (tri.p2.x > tri.p3.x) swap(&(tri.p2), &(tri.p3));
-
-      if (tri.p1.y < clip.x.min || tri.p1.y > clip.x.max) return;
-
-      renderTri(screen,
-                tex,
-                clip,
-                {tri.p1.y, tri.p1.y + 1},
-                {tri.p1.x, tri.p3.x},
-                {tri.p1.x, tri.p3.x},
-                baryPre(tri.p1, tri.p2, tri.p3),
-                uvBlend,
-                alphaBlend);
-    }
-    else // Flat bottom triangle
-    {
-      if (tri.p2.x > tri.p3.x) swap(&(tri.p2), &(tri.p3));
-
-      renderTri(screen,
-                tex,
-                clip,
-                {tri.p1.y, tri.p3.y},
-                {tri.p1.x, tri.p1.x},
-                {tri.p2.x, tri.p3.x},
-                baryPre(tri.p1, tri.p2, tri.p3),
-                uvBlend,
-                alphaBlend);
-    }
-  }
-  else if (tri.p1.y == tri.p2.y) // Flat top triangle
-  {
-    if (tri.p1.x > tri.p2.x) swap(&(tri.p1), &(tri.p2));
-
-    renderTri(screen,
-              tex,
-              clip,
-              {tri.p1.y, tri.p3.y},
-              {tri.p1.x, tri.p2.x},
-              {tri.p3.x, tri.p3.x},
-              baryPre(tri.p1, tri.p2, tri.p3),
-              uvBlend,
-              alphaBlend);
-  }
-  else
-  {
-    // Find 4th point to split the tri into flat top and flat bottom triangles
-    pixel_t<POS, COLOR> p4;
-    p4.x = lerp(tri.p1.x,
-                tri.p3.x,
-                (tri.p2.y - tri.p1.y) / (float)(tri.p3.y - tri.p1.y));
-    p4.y = tri.p2.y;
-    p4.c = tri.p1.c;
-
-    if (tri.p2.x > p4.x) swap(&(tri.p2), &p4);
-
-    renderTri(screen,
-              tex,
-              clip,
-              {tri.p1.y, tri.p2.y},
-              {tri.p1.x, tri.p1.x},
-              {tri.p3.x, p4.x},
-              baryPre(tri.p1, tri.p2, p4),
-              uvBlend,
-              alphaBlend);
-
-    renderTri(screen,
-              tex,
-              clip,
-              {tri.p2.y, tri.p3.y},
-              {tri.p2.x, p4.x},
-              {tri.p3.x, tri.p3.x},
-              baryPre(tri.p2, p4, tri.p3),
-              uvBlend,
-              alphaBlend);
-  }
+  renderTri(screen,
+            tex,
+            clip,
+            {inl_min(inl_min(tri.p1.y, tri.p2.y), tri.p3.y),
+             inl_max(inl_max(tri.p1.y, tri.p2.y), tri.p3.y) + 1},
+            {inl_min(inl_min(tri.p1.x, tri.p2.x), tri.p3.x),
+             inl_max(inl_max(tri.p1.x, tri.p2.x), tri.p3.x) + 1},
+            baryPre(tri.p1, tri.p2, tri.p3),
+            uvBlend,
+            alphaBlend);
 }
 
 template<typename POS, typename SCREEN>
@@ -629,6 +540,12 @@ void renderCommand(texture_t<SCREEN> &screen,
                          verts[2]->col >> IM_COL32_B_SHIFT,
                          verts[2]->col >> IM_COL32_A_SHIFT);
 
+    // Make sure the winding order is correct.
+    if (halfspace(edge_t<POS>{point_t<POS>{tri.p1.x, tri.p1.y},
+                              point_t<POS>{tri.p2.x, tri.p2.y}},
+                  point_t<POS>{tri.p3.x, tri.p3.y}) > 0)
+      swap(&tri.p2, &tri.p3);
+
     const bool noUV = (tri.p1.u == tri.p2.u) && (tri.p1.u == tri.p3.u) &&
                       (tri.p1.v == tri.p2.v) && (tri.p1.v == tri.p3.v);
     const bool flatCol =
@@ -676,4 +593,4 @@ void renderDrawLists(ImDrawData *drawData, texture_t<SCREEN> &screen)
   }
 }
 
-#endif // SOFTRASTER_H
+#endif
