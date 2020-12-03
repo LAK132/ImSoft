@@ -424,8 +424,8 @@ void renderCommand(texture_t<SCREEN> &screen,
                    const ImDrawCmd &pcmd)
 {
   const clip_t<POS> clip = {{inl_max((POS)pcmd.ClipRect.x, (POS)0),
-                             inl_max((POS)pcmd.ClipRect.z, (POS)screen.w)},
-                            {inl_min((POS)pcmd.ClipRect.y, (POS)0),
+                             inl_min((POS)pcmd.ClipRect.z, (POS)screen.w)},
+                            {inl_max((POS)pcmd.ClipRect.y, (POS)0),
                              inl_min((POS)pcmd.ClipRect.w, (POS)screen.h)}};
 
   for (unsigned int i = 0; i < pcmd.ElemCount; i += 3)
