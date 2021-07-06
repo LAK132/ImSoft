@@ -55,9 +55,9 @@ template<typename T>
 inline void swap(T *tri1, T *tri2)
 {
   T temp;
-  memcpy(&temp, tri1, sizeof(T));
-  memcpy(tri1, tri2, sizeof(T));
-  memcpy(tri2, &temp, sizeof(T));
+//   memcpy(&temp, tri1, sizeof(T));
+//   memcpy(tri1, tri2, sizeof(T));
+//   memcpy(tri2, &temp, sizeof(T));
 }
 
 // [0x00, 0xFF]
