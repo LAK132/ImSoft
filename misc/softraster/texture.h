@@ -3,6 +3,7 @@
 
 #include "color.h"
 #include "defines.h"
+#include <stdio.h>
 
 enum class texture_type_t
 {
